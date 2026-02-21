@@ -14,11 +14,11 @@ function RequireAuth({
   children,
 }: {
   user: SessionUser | null;
-  children: JSX.Element;
+  children: (u: SessionUser) => JSX.Element;
 }) {
   const loc = useLocation();
   if (!user) return <Navigate to="/auth" state={{ from: loc.pathname }} replace />;
-  return children;
+  return children(user);
 }
 
 export default function App() {
@@ -30,7 +30,6 @@ export default function App() {
     let unsubscribe: (() => void) | null = null;
 
     const init = async () => {
-      // initial load
       try {
         const u = await getCurrentUser();
         if (mounted) {
@@ -41,7 +40,6 @@ export default function App() {
         if (mounted) setLoading(false);
       }
 
-      // auth listener (dynamic import)
       const { supabase } = await import("./lib/supabase");
       const { data } = supabase.auth.onAuthStateChange(async () => {
         const u = await getCurrentUser();
@@ -72,7 +70,7 @@ export default function App() {
           path="/shop"
           element={
             <RequireAuth user={user}>
-              <Shop user={user} />
+              {(u) => <Shop user={u} />}
             </RequireAuth>
           }
         />
@@ -80,7 +78,7 @@ export default function App() {
           path="/community"
           element={
             <RequireAuth user={user}>
-              <Community user={user} />
+              {(u) => <Community user={u} />}
             </RequireAuth>
           }
         />
@@ -88,7 +86,7 @@ export default function App() {
           path="/lists/:id"
           element={
             <RequireAuth user={user}>
-              <ListDetail user={user} />
+              {(u) => <ListDetail user={u} />}
             </RequireAuth>
           }
         />
@@ -96,7 +94,7 @@ export default function App() {
           path="/profile"
           element={
             <RequireAuth user={user}>
-              <Profile user={user} />
+              {(u) => <Profile user={u} />}
             </RequireAuth>
           }
         />
