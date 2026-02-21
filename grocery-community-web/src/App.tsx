@@ -1,3 +1,5 @@
+import { Admin } from "./pages/Admin";
+import { RequireAdmin } from "./components/RequireAdmin";
 import { Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { getCurrentUser, type SessionUser } from "./lib/auth";
@@ -63,6 +65,14 @@ export default function App() {
     <>
       {shell}
       <Routes>
+        <Route
+          path="/admin"
+          element={
+            <RequireAdmin user={user}>
+              <Admin />
+            </RequireAdmin>
+          }
+        />
         <Route path="/" element={<Home user={user} />} />
         <Route path="/auth" element={<Auth />} />
 
