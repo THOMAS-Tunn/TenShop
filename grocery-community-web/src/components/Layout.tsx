@@ -57,8 +57,12 @@ export function Layout({ user, loading }: { user: SessionUser | null; loading: b
               </button>
               <button
                 onClick={async () => {
-                  await signOut();
-                  navigate("/");
+                  try {
+                    await signOut();
+                    navigate("/", { replace: true });
+                  } catch (e: any) {
+                    alert(e?.message ?? "Sign out failed");
+                  }
                 }}
                 className="rounded-2xl bg-slate-900 px-3 py-2 text-sm text-white hover:opacity-90"
               >
