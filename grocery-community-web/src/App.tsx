@@ -27,37 +27,46 @@ export default function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let mounted = true;
-    let unsubscribe: (() => void) | null = null;
+useEffect(() => {
+  let mounted = true;
+  let unsubscribe: (() => void) | null = null;
 
-    const init = async () => {
-      try {
-        const u = await getCurrentUser();
-        if (mounted) {
-          setUser(u);
-          setLoading(false);
-        }
-      } catch {
-        if (mounted) setLoading(false);
+  const init = async () => {
+    try {
+      const u = await getCurrentUser();
+      if (mounted) {
+        setUser(u);
+        setLoading(false);
+      }
+    } catch {
+      if (mounted) setLoading(false);
+    }
+
+    const { supabase } = await import("./lib/supabase");
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+
+      if (!session?.user) {
+        setUser(null);
+        return;
       }
 
-      const { supabase } = await import("./lib/supabase");
-      const { data } = supabase.auth.onAuthStateChange(async () => {
-        const u = await getCurrentUser();
-        if (mounted) setUser(u);
+      setUser({
+        id: session.user.id,
+        email: session.user.email ?? null,
       });
+    });
 
-      unsubscribe = () => data.subscription.unsubscribe();
-    };
+    unsubscribe = () => data.subscription.unsubscribe();
+  };
 
-    void init();
+  void init();
 
-    return () => {
-      mounted = false;
-      unsubscribe?.();
-    };
-  }, []);
+  return () => {
+    mounted = false;
+    unsubscribe?.();
+  };
+}, []);
 
   const shell = useMemo(() => <Layout user={user} loading={loading} />, [user, loading]);
 
