@@ -9,7 +9,13 @@ import { Community } from "./pages/Community";
 import { ListDetail } from "./pages/ListDetail";
 import { Profile } from "./pages/Profile";
 
-function RequireAuth({ user, children }: { user: SessionUser | null; children: JSX.Element }) {
+function RequireAuth({
+  user,
+  children,
+}: {
+  user: SessionUser | null;
+  children: JSX.Element;
+}) {
   const loc = useLocation();
   if (!user) return <Navigate to="/auth" state={{ from: loc.pathname }} replace />;
   return children;
@@ -21,23 +27,35 @@ export default function App() {
 
   useEffect(() => {
     let mounted = true;
-    getCurrentUser().then((u) => {
-      if (mounted) {
-        setUser(u);
-        setLoading(false);
-      }
-    });
+    let unsubscribe: (() => void) | null = null;
 
-    const { data: sub } = (await import("./lib/supabase")).supabase.auth.onAuthStateChange(
-      async () => {
+    const init = async () => {
+      // initial load
+      try {
         const u = await getCurrentUser();
-        setUser(u);
+        if (mounted) {
+          setUser(u);
+          setLoading(false);
+        }
+      } catch {
+        if (mounted) setLoading(false);
       }
-    );
+
+      // auth listener (dynamic import)
+      const { supabase } = await import("./lib/supabase");
+      const { data } = supabase.auth.onAuthStateChange(async () => {
+        const u = await getCurrentUser();
+        if (mounted) setUser(u);
+      });
+
+      unsubscribe = () => data.subscription.unsubscribe();
+    };
+
+    void init();
 
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
+      unsubscribe?.();
     };
   }, []);
 
@@ -49,6 +67,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home user={user} />} />
         <Route path="/auth" element={<Auth />} />
+
         <Route
           path="/shop"
           element={
@@ -81,6 +100,7 @@ export default function App() {
             </RequireAuth>
           }
         />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
