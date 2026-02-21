@@ -14,5 +14,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 }
 
 export async function signOut() {
-  await supabase.auth.signOut();
+  // "local" guarantees the browser session is cleared even if network calls fail
+  const { error } = await supabase.auth.signOut({ scope: "local" });
+  if (error) throw error;
 }
