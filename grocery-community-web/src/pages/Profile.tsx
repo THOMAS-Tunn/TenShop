@@ -142,6 +142,26 @@ export function Profile({ user }: { user: SessionUser }) {
   }
 
   async function deleteAddress(addressId: string) {
+    const { count, error: checkError } = await supabase
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("address_id", addressId);
+
+    if (checkError) {
+      alert(checkError.message);
+      return;
+    }
+
+    if ((count ?? 0) > 0) {
+      alert(
+        "You cannot delete this address because it is already used by one or more orders. Please keep it for order history, or add a new address and set that one as default."
+      );
+      return;
+    }
+
+    const ok = window.confirm("Delete this saved address?");
+    if (!ok) return;
+
     const { error } = await supabase.from("user_addresses").delete().eq("id", addressId);
     if (error) {
       alert(error.message);
