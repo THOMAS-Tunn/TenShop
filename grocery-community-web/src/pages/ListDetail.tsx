@@ -109,7 +109,6 @@ export function ListDetail({ user }: { user: SessionUser }) {
   useEffect(() => {
     void loadItems();
     void loadAddresses();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listId]);
 
   useEffect(() => {
@@ -156,51 +155,62 @@ export function ListDetail({ user }: { user: SessionUser }) {
     }
 
     if (existing?.id) {
+      const nextQty = (existing.qty ?? 1) + 1;
+
+      setItems((prev) =>
+        prev.map((it) => (it.id === existing.id ? { ...it, qty: nextQty } : it))
+      );
+
       const { error: updErr } = await supabase
         .from("shopping_list_items")
-        .update({ qty: (existing.qty ?? 1) + 1 })
+        .update({ qty: nextQty })
         .eq("id", existing.id);
 
       if (updErr) {
         alert(updErr.message);
+        await loadItems();
       }
 
-      await loadItems();
       return;
     }
 
-    const { error: insErr } = await supabase.from("shopping_list_items").insert({
-      list_id: listId,
-      user_id: user.id,
-      product_id: p.id,
-      name: p.name,
-      price_cents: p.price_cents,
-      qty: 1,
-    });
+    const { data: inserted, error: insErr } = await supabase
+      .from("shopping_list_items")
+      .insert({
+        list_id: listId,
+        user_id: user.id,
+        product_id: p.id,
+        name: p.name,
+        price_cents: p.price_cents,
+        qty: 1,
+      })
+      .select("id,list_id,user_id,product_id,name,price_cents,qty")
+      .single();
 
     if (insErr) {
       alert(insErr.message);
-    }
-
-    await loadItems();
-  }
-
-  async function setQty(itemId: string, nextQty: number) {
-    if (Number.isNaN(nextQty)) return;
-
-    if (nextQty <= 0) {
-      const { error } = await supabase
-        .from("shopping_list_items")
-        .delete()
-        .eq("id", itemId);
-
-      if (error) {
-        alert(error.message);
-      }
-
-      await loadItems();
       return;
     }
+
+    setItems((prev) =>
+      [...prev, inserted as ListItem].sort((a, b) => a.name.localeCompare(b.name))
+    );
+  }
+
+  async function changeQty(itemId: string, delta: number) {
+    const current = items.find((it) => it.id === itemId);
+    if (!current) return;
+
+    const nextQty = current.qty + delta;
+
+    if (nextQty <= 0) {
+      await removeItem(itemId);
+      return;
+    }
+
+    setItems((prev) =>
+      prev.map((it) => (it.id === itemId ? { ...it, qty: nextQty } : it))
+    );
 
     const { error } = await supabase
       .from("shopping_list_items")
@@ -209,9 +219,23 @@ export function ListDetail({ user }: { user: SessionUser }) {
 
     if (error) {
       alert(error.message);
+      await loadItems();
     }
+  }
 
-    await loadItems();
+  async function removeItem(itemId: string) {
+    const previous = items;
+    setItems((prev) => prev.filter((it) => it.id !== itemId));
+
+    const { error } = await supabase
+      .from("shopping_list_items")
+      .delete()
+      .eq("id", itemId);
+
+    if (error) {
+      alert(error.message);
+      setItems(previous);
+    }
   }
 
   const subtotalCents = useMemo(() => {
@@ -349,6 +373,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
               results.map((p) => (
                 <button
                   key={p.id}
+                  type="button"
                   onClick={() => addProduct(p)}
                   className="flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-left text-sm hover:bg-slate-50"
                 >
@@ -391,13 +416,32 @@ export function ListDetail({ user }: { user: SessionUser }) {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={0}
-                      value={it.qty}
-                      onChange={(e) => setQty(it.id, Number(e.target.value))}
-                      className="w-20 rounded-xl border px-2 py-1 text-sm"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => changeQty(it.id, -1)}
+                      className="h-9 w-9 rounded-xl border text-sm font-semibold hover:bg-slate-50"
+                    >
+                      -
+                    </button>
+
+                    <div className="w-10 text-center text-sm font-medium">{it.qty}</div>
+
+                    <button
+                      type="button"
+                      onClick={() => changeQty(it.id, 1)}
+                      className="h-9 w-9 rounded-xl border text-sm font-semibold hover:bg-slate-50"
+                    >
+                      +
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => removeItem(it.id)}
+                      className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+                    >
+                      Remove
+                    </button>
+
                     <div className="w-24 text-right text-sm font-semibold">
                       {money((it.price_cents ?? 0) * it.qty)}
                     </div>
