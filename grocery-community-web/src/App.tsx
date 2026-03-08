@@ -8,6 +8,7 @@ import { Home } from "./pages/Home";
 import { Auth } from "./pages/Auth";
 import { Shop } from "./pages/Shop";
 import { Community } from "./pages/Community";
+import { Chat } from "./pages/Chat";
 import { ListDetail } from "./pages/ListDetail";
 import { Profile } from "./pages/Profile";
 import { OrderDetail } from "./pages/OrderDetail";
@@ -28,46 +29,46 @@ export default function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-useEffect(() => {
-  let mounted = true;
-  let unsubscribe: (() => void) | null = null;
+  useEffect(() => {
+    let mounted = true;
+    let unsubscribe: (() => void) | null = null;
 
-  const init = async () => {
-    try {
-      const u = await getCurrentUser();
-      if (mounted) {
-        setUser(u);
-        setLoading(false);
-      }
-    } catch {
-      if (mounted) setLoading(false);
-    }
-
-    const { supabase } = await import("./lib/supabase");
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
-
-      if (!session?.user) {
-        setUser(null);
-        return;
+    const init = async () => {
+      try {
+        const u = await getCurrentUser();
+        if (mounted) {
+          setUser(u);
+          setLoading(false);
+        }
+      } catch {
+        if (mounted) setLoading(false);
       }
 
-      setUser({
-        id: session.user.id,
-        email: session.user.email ?? null,
+      const { supabase } = await import("./lib/supabase");
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (!mounted) return;
+
+        if (!session?.user) {
+          setUser(null);
+          return;
+        }
+
+        setUser({
+          id: session.user.id,
+          email: session.user.email ?? null,
+        });
       });
-    });
 
-    unsubscribe = () => data.subscription.unsubscribe();
-  };
+      unsubscribe = () => data.subscription.unsubscribe();
+    };
 
-  void init();
+    void init();
 
-  return () => {
-    mounted = false;
-    unsubscribe?.();
-  };
-}, []);
+    return () => {
+      mounted = false;
+      unsubscribe?.();
+    };
+  }, []);
 
   const shell = useMemo(() => <Layout user={user} loading={loading} />, [user, loading]);
 
@@ -94,6 +95,7 @@ useEffect(() => {
             </RequireAuth>
           }
         />
+
         <Route
           path="/community"
           element={
@@ -102,6 +104,16 @@ useEffect(() => {
             </RequireAuth>
           }
         />
+
+        <Route
+          path="/chat"
+          element={
+            <RequireAuth user={user}>
+              {(u) => <Chat user={u} />}
+            </RequireAuth>
+          }
+        />
+
         <Route
           path="/lists/:id"
           element={
@@ -110,14 +122,16 @@ useEffect(() => {
             </RequireAuth>
           }
         />
+
         <Route
-  path="/orders/:id"
-  element={
-    <RequireAuth user={user}>
-      {(u) => <OrderDetail user={u} />}
-    </RequireAuth>
-  }
-/>
+          path="/orders/:id"
+          element={
+            <RequireAuth user={user}>
+              {(u) => <OrderDetail user={u} />}
+            </RequireAuth>
+          }
+        />
+
         <Route
           path="/profile"
           element={
@@ -126,8 +140,6 @@ useEffect(() => {
             </RequireAuth>
           }
         />
-
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
   );
