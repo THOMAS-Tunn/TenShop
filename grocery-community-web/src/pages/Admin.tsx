@@ -9,6 +9,7 @@ type Product = {
   price_cents: number;
   image_url: string | null;
   in_stock: boolean;
+  properties: string[] | null;
 };
 
 type OrderRow = {
@@ -63,10 +64,27 @@ type Profile = {
   phone: string | null;
 };
 
+function parseProperties(value: string) {
+  return value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 export function Admin() {
   const [items, setItems] = useState<Product[]>([]);
   const [name, setName] = useState("");
   const [price, setPrice] = useState<number>(1);
+  const [imageUrl, setImageUrl] = useState("");
+  const [description, setDescription] = useState("");
+  const [propertiesInput, setPropertiesInput] = useState("");
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPrice, setEditPrice] = useState<number>(1);
+  const [editImageUrl, setEditImageUrl] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editPropertiesInput, setEditPropertiesInput] = useState("");
 
   const [threads, setThreads] = useState<OrderRow[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
@@ -289,6 +307,9 @@ export function Admin() {
     const { error } = await supabase.from("products").insert({
       name,
       price_cents: Math.round(price * 100),
+      image_url: imageUrl.trim() || null,
+      description: description.trim() || null,
+      properties: parseProperties(propertiesInput),
       in_stock: true,
     });
 
@@ -299,6 +320,48 @@ export function Admin() {
 
     setName("");
     setPrice(1);
+    setImageUrl("");
+    setDescription("");
+    setPropertiesInput("");
+    await loadProducts();
+  }
+
+  function startEditing(item: Product) {
+    setEditingId(item.id);
+    setEditName(item.name);
+    setEditPrice(item.price_cents / 100);
+    setEditImageUrl(item.image_url ?? "");
+    setEditDescription(item.description ?? "");
+    setEditPropertiesInput((item.properties ?? []).join(", "));
+  }
+
+  function cancelEditing() {
+    setEditingId(null);
+    setEditName("");
+    setEditPrice(1);
+    setEditImageUrl("");
+    setEditDescription("");
+    setEditPropertiesInput("");
+  }
+
+  async function saveItem(id: string) {
+    const { error } = await supabase
+      .from("products")
+      .update({
+        name: editName,
+        price_cents: Math.round(editPrice * 100),
+        image_url: editImageUrl.trim() || null,
+        description: editDescription.trim() || null,
+        properties: parseProperties(editPropertiesInput),
+      })
+      .eq("id", id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    cancelEditing();
     await loadProducts();
   }
 
@@ -520,6 +583,18 @@ export function Admin() {
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Image URL
+                </label>
+                <input
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-2 outline-none transition focus:border-slate-400"
+                  placeholder="https://..."
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
                   Price (USD)
                 </label>
                 <input
@@ -530,6 +605,33 @@ export function Admin() {
                   value={price}
                   onChange={(e) => setPrice(Number(e.target.value))}
                   required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Properties
+                </label>
+                <input
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-2 outline-none transition focus:border-slate-400"
+                  placeholder="Fresh, Organic, 1 lb"
+                  value={propertiesInput}
+                  onChange={(e) => setPropertiesInput(e.target.value)}
+                />
+                <div className="mt-1 text-xs text-slate-500">
+                  Separate each property with a comma.
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Description
+                </label>
+                <textarea
+                  className="min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-slate-400"
+                  placeholder="One description for this item"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
                 />
               </div>
 
@@ -547,33 +649,147 @@ export function Admin() {
           <Card className="p-6">
             <div className="text-sm font-semibold">Products</div>
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 space-y-4">
               {items.length === 0 ? (
                 <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
                   No products yet.
                 </div>
               ) : (
-                items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 px-4 py-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate font-medium text-slate-900">{item.name}</div>
-                      <div className="mt-1 text-sm text-slate-600">
-                        {money(item.price_cents)} • {item.in_stock ? "In stock" : "Out of stock"}
-                      </div>
-                    </div>
+                items.map((item) => {
+                  const isEditing = editingId === item.id;
 
-                    <button
-                      type="button"
-                      onClick={() => deleteItem(item.id)}
-                      className="shrink-0 rounded-2xl border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 hover:bg-red-100"
+                  return (
+                    <div
+                      key={item.id}
+                      className="rounded-3xl border border-slate-200 px-4 py-4"
                     >
-                      Delete
-                    </button>
-                  </div>
-                ))
+                      {isEditing ? (
+                        <div className="grid gap-4">
+                          <div className="grid gap-4 md:grid-cols-[140px_1fr]">
+                            <div className="aspect-square overflow-hidden rounded-2xl bg-slate-100">
+                              {editImageUrl ? (
+                                <img
+                                  src={editImageUrl}
+                                  alt={editName || item.name}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : null}
+                            </div>
+
+                            <div className="grid gap-3">
+                              <input
+                                className="w-full rounded-2xl border border-slate-200 px-4 py-2"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                placeholder="Product name"
+                              />
+                              <input
+                                className="w-full rounded-2xl border border-slate-200 px-4 py-2"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={editPrice}
+                                onChange={(e) => setEditPrice(Number(e.target.value))}
+                                placeholder="Price"
+                              />
+                              <input
+                                className="w-full rounded-2xl border border-slate-200 px-4 py-2"
+                                value={editImageUrl}
+                                onChange={(e) => setEditImageUrl(e.target.value)}
+                                placeholder="Image URL"
+                              />
+                              <input
+                                className="w-full rounded-2xl border border-slate-200 px-4 py-2"
+                                value={editPropertiesInput}
+                                onChange={(e) => setEditPropertiesInput(e.target.value)}
+                                placeholder="Fresh, Organic, 1 lb"
+                              />
+                            </div>
+                          </div>
+
+                          <textarea
+                            className="min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3"
+                            value={editDescription}
+                            onChange={(e) => setEditDescription(e.target.value)}
+                            placeholder="Product description"
+                          />
+
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => saveItem(item.id)}
+                              className="rounded-2xl bg-slate-900 px-4 py-2 text-sm text-white"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEditing}
+                              className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                          <div className="flex min-w-0 gap-4">
+                            <div className="h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
+                              {item.image_url ? (
+                                <img
+                                  src={item.image_url}
+                                  alt={item.name}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : null}
+                            </div>
+
+                            <div className="min-w-0">
+                              <div className="truncate font-medium text-slate-900">{item.name}</div>
+                              <div className="mt-1 text-sm text-slate-600">
+                                {money(item.price_cents)} • {item.in_stock ? "In stock" : "Out of stock"}
+                              </div>
+                              {item.properties?.length ? (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {item.properties.map((property) => (
+                                    <span
+                                      key={property}
+                                      className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700"
+                                    >
+                                      {property}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
+                              {item.description ? (
+                                <p className="mt-2 line-clamp-3 text-sm text-slate-600">
+                                  {item.description}
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="flex shrink-0 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => startEditing(item)}
+                              className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteItem(item.id)}
+                              className="rounded-2xl border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 hover:bg-red-100"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
           </Card>
