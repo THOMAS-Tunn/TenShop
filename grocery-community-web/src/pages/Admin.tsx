@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "";
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "../components/Card";
 import { supabase } from "../lib/supabase";
 
@@ -781,4 +781,5 @@ export function Admin() {
     </main>
   );
 }
+
 
