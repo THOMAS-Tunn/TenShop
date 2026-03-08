@@ -1,7 +1,5 @@
-import { Admin } from "./pages/Admin";
-import { RequireAdmin } from "./components/RequireAdmin";
-import { Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
+import { Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { getCurrentUser, type SessionUser } from "./lib/auth";
 import { Layout } from "./components/Layout";
 import { Home } from "./pages/Home";
@@ -12,6 +10,8 @@ import { Chat } from "./pages/Chat";
 import { ListDetail } from "./pages/ListDetail";
 import { Profile } from "./pages/Profile";
 import { OrderDetail } from "./pages/OrderDetail";
+import { Admin } from "./pages/Admin";
+import { RequireAdmin } from "./components/RequireAdmin";
 
 function RequireAuth({
   user,
@@ -28,6 +28,10 @@ function RequireAuth({
 export default function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    document.title = "Tien Shop";
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -86,7 +90,6 @@ export default function App() {
         />
         <Route path="/" element={<Home user={user} />} />
         <Route path="/auth" element={<Auth />} />
-
         <Route
           path="/shop"
           element={
@@ -95,7 +98,6 @@ export default function App() {
             </RequireAuth>
           }
         />
-
         <Route
           path="/community"
           element={
@@ -104,7 +106,6 @@ export default function App() {
             </RequireAuth>
           }
         />
-
         <Route
           path="/chat"
           element={
@@ -113,7 +114,6 @@ export default function App() {
             </RequireAuth>
           }
         />
-
         <Route
           path="/lists/:id"
           element={
@@ -122,7 +122,6 @@ export default function App() {
             </RequireAuth>
           }
         />
-
         <Route
           path="/orders/:id"
           element={
@@ -131,7 +130,6 @@ export default function App() {
             </RequireAuth>
           }
         />
-
         <Route
           path="/profile"
           element={
@@ -140,7 +138,6 @@ export default function App() {
             </RequireAuth>
           }
         />
-
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

@@ -2,6 +2,7 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import { signOut, type SessionUser } from "../lib/auth";
 import { useMemo } from "react";
 import clsx from "clsx";
+import siteLogo from "../assets/logo.png";
 
 export function Layout({ user, loading }: { user: SessionUser | null; loading: boolean }) {
   const navigate = useNavigate();
@@ -17,13 +18,20 @@ export function Layout({ user, loading }: { user: SessionUser | null; loading: b
   );
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-white/85 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="h-9 w-9 rounded-2xl bg-slate-900" />
+    <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/88 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
+        <Link to="/" className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm ring-4 ring-red-50">
+            <img
+              src={siteLogo}
+              alt="Tien Shop logo"
+              className="h-full w-full rounded-full object-cover"
+            />
+          </div>
+
           <div className="leading-tight">
-            <div className="text-sm font-semibold">Grocery</div>
-            <div className="text-xs text-slate-500">Shopping + Community</div>
+            <div className="text-base font-semibold tracking-tight text-slate-900">Tien Shop</div>
+            <div className="text-xs text-slate-500">Delicious • Flexible • Easy</div>
           </div>
         </Link>
 
@@ -34,8 +42,10 @@ export function Layout({ user, loading }: { user: SessionUser | null; loading: b
               to={user || n.to === "/" ? n.to : "/auth"}
               className={({ isActive }) =>
                 clsx(
-                  "rounded-2xl px-3 py-2 text-sm transition",
-                  isActive ? "bg-slate-900 text-white" : "hover:bg-slate-100"
+                  "rounded-full px-4 py-2 text-sm font-medium transition",
+                  isActive
+                    ? "bg-slate-900 text-white shadow-sm"
+                    : "text-slate-700 hover:bg-slate-100"
                 )
               }
             >
@@ -46,13 +56,12 @@ export function Layout({ user, loading }: { user: SessionUser | null; loading: b
 
         <div className="flex items-center gap-2">
           {loading ? (
-            <div className="h-9 w-28 animate-pulse rounded-2xl bg-slate-100" />
+            <div className="h-10 w-28 animate-pulse rounded-full bg-slate-100" />
           ) : user ? (
             <>
               <button
                 onClick={() => navigate("/profile")}
-                className="rounded-2xl border px-3 py-2 text-sm hover:bg-slate-50"
-                title={user.email ?? "Profile"}
+                className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Profile
               </button>
@@ -65,7 +74,7 @@ export function Layout({ user, loading }: { user: SessionUser | null; loading: b
                     alert(e?.message ?? "Sign out failed");
                   }
                 }}
-                className="rounded-2xl bg-slate-900 px-3 py-2 text-sm text-white hover:opacity-90"
+                className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:opacity-90"
               >
                 Sign out
               </button>
@@ -73,7 +82,7 @@ export function Layout({ user, loading }: { user: SessionUser | null; loading: b
           ) : (
             <Link
               to="/auth"
-              className="rounded-2xl bg-slate-900 px-3 py-2 text-sm text-white hover:opacity-90"
+              className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:opacity-90"
             >
               Sign in
             </Link>

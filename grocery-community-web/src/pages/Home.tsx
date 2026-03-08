@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Card } from "../components/Card";
 import type { SessionUser } from "../lib/auth";
+import siteLogo from "../assets/logo.png";
 
 export function Home({ user }: { user: SessionUser | null }) {
   return (
