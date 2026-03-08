@@ -11,7 +11,7 @@ type Product = {
   in_stock: boolean;
 };
 
-type AdminThread = {
+type OrderRow = {
   id: string;
   user_id: string;
   status: string;
@@ -66,10 +66,14 @@ export function Admin() {
   const [name, setName] = useState("");
   const [price, setPrice] = useState<number>(1);
 
-  const [threads, setThreads] = useState<AdminThread[]>([]);
+  const [threads, setThreads] = useState<OrderRow[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
-  const [selectedOrder, setSelectedOrder] = useState<AdminThread | null>(null);
+  const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
+  const [bulkAction, setBulkAction] = useState("");
+
+  const [selectedOrder, setSelectedOrder] = useState<OrderRow | null>(null);
   const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
   const [selectedMessages, setSelectedMessages] = useState<OrderMessage[]>([]);
   const [addressMap, setAddressMap] = useState<Record<string, Address>>({});
@@ -92,37 +96,17 @@ export function Admin() {
     return new Date(value).toLocaleString();
   }
 
-  function getCustomerLabel(thread: AdminThread) {
-    const profile = profileMap[thread.user_id];
+  function getCustomerLabel(order: OrderRow) {
+    const profile = profileMap[order.user_id];
     if (profile?.full_name?.trim()) return profile.full_name;
-    return `Customer ${thread.user_id.slice(0, 8)}`;
-  }
-
-  function getLastMessagePreview(threadId: string) {
-    const messages = selectedChatId === threadId ? selectedMessages : [];
-    const latest = messages[messages.length - 1];
-
-    if (!latest) {
-      const thread = threads.find((t) => t.id === threadId);
-      return thread?.customer_note || "New order request";
-    }
-
-    if (latest.message_type === "address") {
-      return "Shared a delivery address";
-    }
-
-    if (latest.message_type === "system") {
-      return latest.body || "System update";
-    }
-
-    return latest.body || "Message";
+    return `Customer ${order.user_id.slice(0, 8)}`;
   }
 
   async function loadProducts() {
     const { data, error } = await supabase.from("products").select("*").order("name");
 
     if (error) {
-      console.error(error);
+      alert(error.message);
       return;
     }
 
@@ -136,34 +120,30 @@ export function Admin() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error(error);
+      alert(error.message);
       return;
     }
 
-    const next = (data ?? []) as AdminThread[];
+    const next = (data ?? []) as OrderRow[];
     setThreads(next);
+
+    const userIds = Array.from(new Set(next.map((x) => x.user_id).filter(Boolean)));
+
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, phone")
+        .in("id", userIds);
+
+      const nextProfileMap: Record<string, Profile> = {};
+      for (const p of profiles ?? []) {
+        nextProfileMap[p.id] = p as Profile;
+      }
+      setProfileMap(nextProfileMap);
+    }
 
     if (!selectedChatId && next[0]) {
       setSelectedChatId(next[0].id);
-    }
-
-    const uniqueUserIds = Array.from(new Set(next.map((t) => t.user_id).filter(Boolean)));
-
-    if (uniqueUserIds.length > 0) {
-      const { data: profiles, error: profileError } = await supabase
-        .from("profiles")
-        .select("id,full_name,phone")
-        .in("id", uniqueUserIds);
-
-      if (profileError) {
-        console.error(profileError);
-      } else {
-        const nextProfileMap: Record<string, Profile> = {};
-        for (const p of profiles ?? []) {
-          nextProfileMap[p.id] = p as Profile;
-        }
-        setProfileMap(nextProfileMap);
-      }
     }
   }
 
@@ -177,50 +157,54 @@ export function Admin() {
       .single();
 
     if (orderError) {
-      console.error(orderError);
+      alert(orderError.message);
       setLoadingChat(false);
       return;
     }
 
-    const [{ data: itemData, error: itemError }, { data: msgData, error: msgError }] =
+    const [{ data: itemData, error: itemError }, { data: messageData, error: messageError }] =
       await Promise.all([
         supabase.from("order_items").select("*").eq("order_id", orderId).order("name"),
         supabase.from("order_messages").select("*").eq("order_id", orderId).order("created_at"),
       ]);
 
-    if (itemError) console.error(itemError);
-    if (msgError) console.error(msgError);
+    if (itemError) {
+      alert(itemError.message);
+      setLoadingChat(false);
+      return;
+    }
 
-    const order = orderData as AdminThread;
-    const items = (itemData ?? []) as OrderItem[];
-    const messages = (msgData ?? []) as OrderMessage[];
+    if (messageError) {
+      alert(messageError.message);
+      setLoadingChat(false);
+      return;
+    }
+
+    const order = orderData as OrderRow;
+    const messages = (messageData ?? []) as OrderMessage[];
 
     setSelectedOrder(order);
-    setSelectedItems(items);
+    setSelectedItems((itemData ?? []) as OrderItem[]);
     setSelectedMessages(messages);
 
     const addressIds = new Set<string>();
     if (order.address_id) addressIds.add(order.address_id);
 
-    for (const msg of messages) {
-      if (msg.address_id) addressIds.add(msg.address_id);
+    for (const m of messages) {
+      if (m.address_id) addressIds.add(m.address_id);
     }
 
     if (addressIds.size > 0) {
-      const { data: addresses, error: addressError } = await supabase
+      const { data: addresses } = await supabase
         .from("user_addresses")
         .select("*")
         .in("id", Array.from(addressIds));
 
-      if (addressError) {
-        console.error(addressError);
-      } else {
-        const nextAddressMap: Record<string, Address> = {};
-        for (const a of addresses ?? []) {
-          nextAddressMap[a.id] = a as Address;
-        }
-        setAddressMap(nextAddressMap);
+      const nextAddressMap: Record<string, Address> = {};
+      for (const a of addresses ?? []) {
+        nextAddressMap[a.id] = a as Address;
       }
+      setAddressMap(nextAddressMap);
     } else {
       setAddressMap({});
     }
@@ -234,9 +218,9 @@ export function Admin() {
   }, []);
 
   useEffect(() => {
-    if (!selectedChatId) return;
+    if (!selectedChatId || !chatOpen) return;
     void loadSelectedOrder(selectedChatId);
-  }, [selectedChatId]);
+  }, [selectedChatId, chatOpen]);
 
   useEffect(() => {
     const channel = supabase
@@ -246,7 +230,7 @@ export function Admin() {
         { event: "*", schema: "public", table: "orders" },
         () => {
           void loadThreads();
-          if (selectedChatId) {
+          if (selectedChatId && chatOpen) {
             void loadSelectedOrder(selectedChatId);
           }
         }
@@ -254,16 +238,10 @@ export function Admin() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "order_messages" },
-        (payload) => {
+        () => {
           void loadThreads();
-
-          const orderId =
-            typeof payload.new === "object" && payload.new && "order_id" in payload.new
-              ? String(payload.new.order_id)
-              : selectedChatId;
-
-          if (orderId) {
-            void loadSelectedOrder(orderId);
+          if (selectedChatId && chatOpen) {
+            void loadSelectedOrder(selectedChatId);
           }
         }
       )
@@ -272,7 +250,7 @@ export function Admin() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [selectedChatId]);
+  }, [selectedChatId, chatOpen]);
 
   async function addItem(e: React.FormEvent) {
     e.preventDefault();
@@ -304,6 +282,102 @@ export function Admin() {
     await loadProducts();
   }
 
+  function openChat(orderId: string) {
+    setSelectedChatId(orderId);
+    setChatOpen(true);
+  }
+
+  function closeChat() {
+    setChatOpen(false);
+    setSelectedOrder(null);
+    setSelectedItems([]);
+    setSelectedMessages([]);
+    setReplyBody("");
+  }
+
+  function toggleBulkSelection(orderId: string) {
+    setSelectedBulkIds((prev) =>
+      prev.includes(orderId) ? prev.filter((id) => id !== orderId) : [...prev, orderId]
+    );
+  }
+
+  async function applyBulkAction() {
+    if (!bulkAction || selectedBulkIds.length === 0) {
+      alert("Select an action and at least one chat.");
+      return;
+    }
+
+    if (bulkAction === "shipped") {
+      const { error } = await supabase
+        .from("orders")
+        .update({ status: "shipped" })
+        .in("id", selectedBulkIds);
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+    }
+
+    if (bulkAction === "delete") {
+      const { error: msgError } = await supabase
+        .from("order_messages")
+        .delete()
+        .in("order_id", selectedBulkIds);
+
+      if (msgError) {
+        alert(msgError.message);
+        return;
+      }
+
+      const { error: itemError } = await supabase
+        .from("order_items")
+        .delete()
+        .in("order_id", selectedBulkIds);
+
+      if (itemError) {
+        alert(itemError.message);
+        return;
+      }
+
+      const { error: orderError } = await supabase
+        .from("orders")
+        .delete()
+        .in("id", selectedBulkIds);
+
+      if (orderError) {
+        alert(orderError.message);
+        return;
+      }
+
+      if (selectedChatId && selectedBulkIds.includes(selectedChatId)) {
+        closeChat();
+        setSelectedChatId(null);
+      }
+    }
+
+    setBulkAction("");
+    setSelectedBulkIds([]);
+    await loadThreads();
+  }
+
+  async function markCurrentAsShipped() {
+    if (!selectedChatId) return;
+
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: "shipped" })
+      .eq("id", selectedChatId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await loadThreads();
+    await loadSelectedOrder(selectedChatId);
+  }
+
   async function sendReply(e: React.FormEvent) {
     e.preventDefault();
 
@@ -313,12 +387,12 @@ export function Admin() {
 
     const {
       data: { user },
-      error: userError,
+      error: authError,
     } = await supabase.auth.getUser();
 
-    if (userError || !user) {
+    if (authError || !user) {
       setSendingReply(false);
-      alert("Could not find the current admin user.");
+      alert("Could not find the signed-in admin.");
       return;
     }
 
@@ -373,7 +447,7 @@ export function Admin() {
               Admin Dashboard
             </h1>
             <p className="mt-3 text-slate-600">
-              Manage products and view real customer orders and messages.
+              Manage products and real customer order chats.
             </p>
           </div>
 
@@ -433,7 +507,7 @@ export function Admin() {
             <div className="mt-4 space-y-3">
               {items.length === 0 ? (
                 <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-                  No products yet. Add your first item to get started.
+                  No products yet.
                 </div>
               ) : (
                 items.map((item) => (
@@ -442,22 +516,19 @@ export function Admin() {
                     className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 px-4 py-3"
                   >
                     <div className="min-w-0">
-                      <div className="truncate font-medium text-slate-900">
-                        {item.name}
-                      </div>
+                      <div className="truncate font-medium text-slate-900">{item.name}</div>
                       <div className="mt-1 text-sm text-slate-600">
-                        {(item.price_cents / 100).toFixed(2)} USD •{" "}
-                        {item.in_stock ? "In stock" : "Out of stock"}
+                        {money(item.price_cents)} • {item.in_stock ? "In stock" : "Out of stock"}
                       </div>
                     </div>
 
-<button
-  type="button"
-  onClick={() => deleteItem(item.id)}
-  className="shrink-0 rounded-2xl border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 hover:bg-red-100"
->
-  Delete
-</button>
+                    <button
+                      type="button"
+                      onClick={() => deleteItem(item.id)}
+                      className="shrink-0 rounded-2xl border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 hover:bg-red-100"
+                    >
+                      Delete
+                    </button>
                   </div>
                 ))
               )}
@@ -468,179 +539,245 @@ export function Admin() {
         <div className="space-y-6">
           <Card className="overflow-hidden border border-slate-800 bg-[#0b0b0c] p-0 text-white shadow-2xl">
             <div className="border-b border-slate-800 px-5 py-4">
-              <h2 className="text-lg font-semibold">Customer Chats</h2>
-              <p className="mt-1 text-sm text-slate-400">
-                Real orders from Supabase will appear here.
-              </p>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold">Customer Chats</h2>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Real orders from Supabase.
+                  </p>
+                </div>
+
+                {chatOpen && selectedChatId ? (
+                  <button
+                    type="button"
+                    onClick={closeChat}
+                    className="rounded-xl border border-slate-600 px-3 py-2 text-xs text-slate-200 hover:bg-white/5"
+                  >
+                    Close chat
+                  </button>
+                ) : null}
+              </div>
             </div>
 
-            <div className="max-h-[360px] divide-y divide-slate-800 overflow-y-auto">
+            <div className="border-b border-slate-800 px-5 py-4">
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <select
+                  value={bulkAction}
+                  onChange={(e) => setBulkAction(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                >
+                  <option value="">Select action…</option>
+                  <option value="shipped">Mark selected as shipped</option>
+                  <option value="delete">Delete selected chats</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={applyBulkAction}
+                  className="rounded-2xl bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+
+            <div className={`${chatOpen ? "max-h-[320px]" : "max-h-[720px]"} overflow-y-auto divide-y divide-slate-800`}>
               {threads.length === 0 ? (
-                <div className="px-5 py-6 text-sm text-slate-400">
-                  No order chats yet.
-                </div>
+                <div className="px-5 py-6 text-sm text-slate-400">No order chats yet.</div>
               ) : (
                 threads.map((thread) => {
-                  const active = selectedChatId === thread.id;
+                  const active = selectedChatId === thread.id && chatOpen;
+                  const checked = selectedBulkIds.includes(thread.id);
 
                   return (
-                    <button
+                    <div
                       key={thread.id}
-                      type="button"
-                      onClick={() => setSelectedChatId(thread.id)}
-                      className={`flex w-full items-start justify-between gap-4 px-5 py-4 text-left transition ${
-                        active ? "bg-white/10" : "bg-transparent hover:bg-white/5"
+                      className={`flex items-start gap-3 px-5 py-4 transition ${
+                        active ? "bg-white/10" : "hover:bg-white/5"
                       }`}
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-[15px] font-semibold text-white">
-                          {getCustomerLabel(thread)}
-                        </div>
-                        <div className="mt-1 truncate text-sm text-slate-400">
-                          {thread.customer_note || getLastMessagePreview(thread.id)}
-                        </div>
-                        <div className="mt-2 text-xs text-slate-500">
-                          Order #{thread.id.slice(0, 8)} • {thread.status}
-                        </div>
-                      </div>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleBulkSelection(thread.id)}
+                        className="mt-1 h-4 w-4 rounded"
+                      />
 
-                      <div className="shrink-0 text-right">
-                        <div className="text-sm font-semibold text-white">
-                          {money(thread.total_cents)}
+                      <button
+                        type="button"
+                        onClick={() => openChat(thread.id)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="truncate text-[15px] font-semibold text-white">
+                            {getCustomerLabel(thread)}
+                          </div>
+                          <div className="shrink-0 text-xs text-slate-400">
+                            {formatTime(thread.created_at)}
+                          </div>
                         </div>
-                        <div className="mt-1 text-xs text-slate-400">
-                          {formatTime(thread.created_at)}
+
+                        <div className="mt-1 truncate text-sm text-slate-400">
+                          {thread.customer_note || `Order total ${money(thread.total_cents)}`}
                         </div>
-                      </div>
-                    </button>
+
+                        <div className="mt-2 flex items-center gap-2 text-xs">
+                          <span className="rounded-full bg-white/10 px-2 py-1 text-slate-200">
+                            {thread.status}
+                          </span>
+                          <span className="text-slate-500">
+                            Order #{thread.id.slice(0, 8)}
+                          </span>
+                        </div>
+                      </button>
+                    </div>
                   );
                 })
               )}
             </div>
-          </Card>
 
-          <Card className="p-5">
-            {!selectedChatId ? (
-              <div className="text-sm text-slate-600">
-                Select an order chat to view the conversation.
-              </div>
-            ) : loadingChat ? (
-              <div className="text-sm text-slate-600">Loading chat…</div>
-            ) : !selectedOrder ? (
-              <div className="text-sm text-slate-600">Order not found.</div>
-            ) : (
-              <>
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-900">
-                      {getCustomerLabel(selectedOrder)}
-                    </div>
-                    <div className="mt-1 text-sm text-slate-600">
-                      Order #{selectedOrder.id.slice(0, 8)} • {selectedOrder.status}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      Placed {formatTime(selectedOrder.created_at)}
-                    </div>
-                  </div>
+            {chatOpen ? (
+              <div className="border-t border-slate-800 bg-white p-5 text-slate-900">
+                {!selectedChatId ? (
+                  <div className="text-sm text-slate-600">Select a chat.</div>
+                ) : loadingChat ? (
+                  <div className="text-sm text-slate-600">Loading chat…</div>
+                ) : !selectedOrder ? (
+                  <div className="text-sm text-slate-600">Order not found.</div>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          {getCustomerLabel(selectedOrder)}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-600">
+                          Order #{selectedOrder.id.slice(0, 8)}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          {formatTime(selectedOrder.created_at)}
+                        </div>
+                      </div>
 
-                  <div className="text-right">
-                    <div className="text-sm text-slate-600">Total</div>
-                    <div className="text-lg font-semibold text-slate-900">
-                      {money(selectedOrder.total_cents)}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                  <div>
-                    <div className="mb-2 text-sm font-semibold text-slate-900">
-                      Order items
-                    </div>
-                    <div className="space-y-2">
-                      {selectedItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className="flex items-center justify-between rounded-2xl border px-3 py-3 text-sm"
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={markCurrentAsShipped}
+                          className="rounded-2xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 hover:bg-emerald-100"
                         >
-                          <div>
-                            {item.name} × {item.qty}
+                          Mark shipped
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={closeChat}
+                          className="rounded-2xl border px-3 py-2 text-sm hover:bg-slate-50"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                      <div>
+                        <div className="mb-2 text-sm font-semibold">Order items</div>
+                        <div className="space-y-2">
+                          {selectedItems.map((item) => (
+                            <div
+                              key={item.id}
+                              className="flex items-center justify-between rounded-2xl border px-3 py-3 text-sm"
+                            >
+                              <div>
+                                {item.name} × {item.qty}
+                              </div>
+                              <div className="font-medium">
+                                {money(item.price_cents * item.qty)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="mt-3 rounded-2xl border bg-slate-50 px-4 py-3 text-sm">
+                          <div className="flex items-center justify-between">
+                            <span>Subtotal</span>
+                            <span>{money(selectedOrder.subtotal_cents)}</span>
                           </div>
-                          <div className="font-medium">
-                            {money(item.price_cents * item.qty)}
+                          <div className="mt-1 flex items-center justify-between">
+                            <span>Tax</span>
+                            <span>{money(selectedOrder.tax_cents)}</span>
+                          </div>
+                          <div className="mt-1 flex items-center justify-between font-semibold">
+                            <span>Total</span>
+                            <span>{money(selectedOrder.total_cents)}</span>
                           </div>
                         </div>
-                      ))}
+                      </div>
+
+                      <div>
+                        <div className="mb-2 text-sm font-semibold">Delivery address</div>
+                        {renderAddress(selectedOrder.address_id)}
+                      </div>
                     </div>
-                  </div>
 
-                  <div>
-                    <div className="mb-2 text-sm font-semibold text-slate-900">
-                      Delivery address
-                    </div>
-                    {renderAddress(selectedOrder.address_id)}
-                  </div>
-                </div>
+                    <div className="mt-5">
+                      <div className="mb-2 text-sm font-semibold">Conversation</div>
 
-                <div className="mt-5">
-                  <div className="mb-2 text-sm font-semibold text-slate-900">
-                    Conversation
-                  </div>
+                      <div className="max-h-[300px] space-y-3 overflow-y-auto rounded-2xl border bg-slate-50 p-3">
+                        {selectedMessages.length === 0 ? (
+                          <div className="text-sm text-slate-600">No messages yet.</div>
+                        ) : (
+                          selectedMessages.map((message) => {
+                            const isAddress = message.message_type === "address";
 
-                  <div className="max-h-[320px] space-y-3 overflow-y-auto rounded-2xl border bg-slate-50 p-3">
-                    {selectedMessages.length === 0 ? (
-                      <div className="text-sm text-slate-600">No messages yet.</div>
-                    ) : (
-                      selectedMessages.map((message) => {
-                        const isAddress = message.message_type === "address";
-
-                        return (
-                          <div
-                            key={message.id}
-                            className="rounded-2xl bg-white px-4 py-3 text-sm shadow-sm"
-                          >
-                            <div className="text-xs text-slate-500">
-                              {message.sender_user_id === selectedOrder.user_id
-                                ? getCustomerLabel(selectedOrder)
-                                : "Admin"}{" "}
-                              • {formatTime(message.created_at)}
-                            </div>
-
-                            <div className="mt-2">
-                              {isAddress ? renderAddress(message.address_id) : null}
-                              {!isAddress ? (
-                                <div className="text-slate-800">
-                                  {message.body || "Empty message"}
+                            return (
+                              <div
+                                key={message.id}
+                                className="rounded-2xl bg-white px-4 py-3 text-sm shadow-sm"
+                              >
+                                <div className="text-xs text-slate-500">
+                                  {message.sender_user_id === selectedOrder.user_id
+                                    ? getCustomerLabel(selectedOrder)
+                                    : "Admin"}{" "}
+                                  • {formatTime(message.created_at)}
                                 </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
 
-                  <form onSubmit={sendReply} className="mt-4 flex gap-2">
-                    <input
-                      value={replyBody}
-                      onChange={(e) => setReplyBody(e.target.value)}
-                      placeholder="Reply to customer..."
-                      className="w-full rounded-2xl border px-3 py-2 text-sm"
-                    />
-                    <button
-                      type="submit"
-                      disabled={sendingReply || !replyBody.trim()}
-                      className="rounded-2xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
-                    >
-                      {sendingReply ? "Sending..." : "Send"}
-                    </button>
-                  </form>
-                </div>
-              </>
-            )}
+                                <div className="mt-2">
+                                  {isAddress ? renderAddress(message.address_id) : null}
+                                  {!isAddress ? (
+                                    <div className="text-slate-800">
+                                      {message.body || "Empty message"}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      <form onSubmit={sendReply} className="mt-4 flex gap-2">
+                        <input
+                          value={replyBody}
+                          onChange={(e) => setReplyBody(e.target.value)}
+                          placeholder="Reply to customer..."
+                          className="w-full rounded-2xl border px-3 py-2 text-sm"
+                        />
+                        <button
+                          type="submit"
+                          disabled={sendingReply || !replyBody.trim()}
+                          className="rounded-2xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
+                        >
+                          {sendingReply ? "Sending..." : "Send"}
+                        </button>
+                      </form>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : null}
           </Card>
         </div>
       </div>
     </main>
   );
 }
-
