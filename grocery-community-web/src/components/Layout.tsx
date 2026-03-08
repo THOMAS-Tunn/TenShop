@@ -10,7 +10,8 @@ export function Layout({ user, loading }: { user: SessionUser | null; loading: b
     () => [
       { to: "/", label: "Home" },
       { to: "/shop", label: "Shop" },
-      { to: "/community", label: "Community" }
+      { to: "/community", label: "Community" },
+      { to: "/chat", label: "Chat" },
     ],
     []
   );
@@ -30,7 +31,7 @@ export function Layout({ user, loading }: { user: SessionUser | null; loading: b
           {nav.map((n) => (
             <NavLink
               key={n.to}
-              to={n.to}
+              to={user || n.to === "/" ? n.to : "/auth"}
               className={({ isActive }) =>
                 clsx(
                   "rounded-2xl px-3 py-2 text-sm transition",
