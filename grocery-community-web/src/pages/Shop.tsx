@@ -20,13 +20,22 @@ type List = {
   created_at: string;
 };
 
+type ListItem = {
+  id: string;
+  name: string;
+  qty: number;
+  price_cents: number;
+};
+
 export function Shop({ user }: { user: SessionUser }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [lists, setLists] = useState<List[]>([]);
+  const [listItems, setListItems] = useState<ListItem[]>([]);
   const [listName, setListName] = useState("My List");
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
+  const [deletingListId, setDeletingListId] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   useEffect(() => {
@@ -50,20 +59,54 @@ export function Shop({ user }: { user: SessionUser }) {
     if (error) {
       console.error(error);
       setLists([]);
-      return;
+      return [] as List[];
     }
 
     const next = (data ?? []) as List[];
     setLists(next);
 
-    if (!selectedListId && next.length > 0) {
-      setSelectedListId(next[0].id);
+    if (next.length === 0) {
+      setSelectedListId(null);
+      return next;
     }
+
+    setSelectedListId((current) => {
+      if (current && next.some((list) => list.id === current)) return current;
+      return next[0].id;
+    });
+
+    return next;
+  }
+
+  async function loadListItems(listId: string | null) {
+    if (!listId) {
+      setListItems([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("shopping_list_items")
+      .select("id,name,qty,price_cents")
+      .eq("list_id", listId)
+      .eq("user_id", user.id)
+      .order("name");
+
+    if (error) {
+      console.error(error);
+      setListItems([]);
+      return;
+    }
+
+    setListItems((data ?? []) as ListItem[]);
   }
 
   useEffect(() => {
     void loadLists();
   }, []);
+
+  useEffect(() => {
+    void loadListItems(selectedListId);
+  }, [selectedListId]);
 
   const money = useMemo(
     () => (cents: number) =>
@@ -89,6 +132,49 @@ export function Shop({ user }: { user: SessionUser }) {
 
     await loadLists();
     if (data?.id) setSelectedListId(data.id);
+  }
+
+  async function deleteList(listId: string) {
+    const target = lists.find((list) => list.id === listId);
+    const ok = window.confirm(
+      `Delete \"${target?.name ?? "this list"}\" and all of its items?`
+    );
+
+    if (!ok) return;
+
+    setDeletingListId(listId);
+
+    const { error: itemsError } = await supabase
+      .from("shopping_list_items")
+      .delete()
+      .eq("list_id", listId)
+      .eq("user_id", user.id);
+
+    if (itemsError) {
+      setDeletingListId(null);
+      alert(itemsError.message);
+      return;
+    }
+
+    const { error: listError } = await supabase
+      .from("shopping_lists")
+      .delete()
+      .eq("id", listId)
+      .eq("user_id", user.id);
+
+    setDeletingListId(null);
+
+    if (listError) {
+      alert(listError.message);
+      return;
+    }
+
+    const nextLists = await loadLists();
+    if (!nextLists.some((list) => list.id === listId)) {
+      if (selectedListId === listId) {
+        setSelectedListId(nextLists[0]?.id ?? null);
+      }
+    }
   }
 
   async function addProductToList(p: Product) {
@@ -120,7 +206,12 @@ export function Shop({ user }: { user: SessionUser }) {
         .eq("id", existing.id);
 
       setAddingId(null);
-      if (updErr) alert(updErr.message);
+      if (updErr) {
+        alert(updErr.message);
+        return;
+      }
+
+      await loadListItems(selectedListId);
       return;
     }
 
@@ -134,8 +225,16 @@ export function Shop({ user }: { user: SessionUser }) {
     });
 
     setAddingId(null);
-    if (insErr) alert(insErr.message);
+    if (insErr) {
+      alert(insErr.message);
+      return;
+    }
+
+    await loadListItems(selectedListId);
   }
+
+  const selectedList = lists.find((list) => list.id === selectedListId) ?? null;
+  const selectedListTotal = listItems.reduce((sum, item) => sum + item.price_cents * item.qty, 0);
 
   return (
     <>
@@ -209,7 +308,10 @@ export function Shop({ user }: { user: SessionUser }) {
 
                   {selectedListId ? (
                     <div className="mt-2 text-xs text-slate-500">
-                      Adds to: <span className="font-medium">{lists.find((l) => l.id === selectedListId)?.name ?? "Selected list"}</span>
+                      Adds to:{" "}
+                      <span className="font-medium">
+                        {lists.find((l) => l.id === selectedListId)?.name ?? "Selected list"}
+                      </span>
                     </div>
                   ) : (
                     <div className="mt-2 text-xs text-slate-500">Create a list to start adding items.</div>
@@ -261,18 +363,103 @@ export function Shop({ user }: { user: SessionUser }) {
                 {lists.length === 0 ? (
                   <div className="text-sm text-slate-600">No lists yet.</div>
                 ) : (
-                  lists.map((l) => (
-                    <Link
-                      key={l.id}
-                      to={`/lists/${l.id}`}
-                      className="block rounded-2xl border px-3 py-3 text-sm hover:bg-slate-50"
-                    >
-                      <div className="font-medium">{l.name}</div>
-                      <div className="text-xs text-slate-500">{new Date(l.created_at).toLocaleString()}</div>
-                    </Link>
-                  ))
+                  lists.map((l) => {
+                    const isSelected = l.id === selectedListId;
+
+                    return (
+                      <div
+                        key={l.id}
+                        className={`rounded-2xl border px-3 py-3 transition ${
+                          isSelected ? "border-slate-900 bg-slate-50" : "hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedListId(l.id)}
+                            className="min-w-0 flex-1 text-left"
+                          >
+                            <div className="font-medium">{l.name}</div>
+                            <div className="text-xs text-slate-500">
+                              {new Date(l.created_at).toLocaleString()}
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            aria-label={`Delete ${l.name}`}
+                            title="Delete list"
+                            disabled={deletingListId === l.id}
+                            onClick={() => void deleteList(l.id)}
+                            className="rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 transition hover:bg-red-100 disabled:opacity-60"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              className="h-4 w-4"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M9 3.75A2.25 2.25 0 0 1 11.25 1.5h1.5A2.25 2.25 0 0 1 15 3.75V4.5h3.75a.75.75 0 0 1 0 1.5h-.52l-.76 12.1A2.25 2.25 0 0 1 15.22 20.25H8.78a2.25 2.25 0 0 1-2.25-2.15L5.77 6H5.25a.75.75 0 0 1 0-1.5H9v-.75ZM10.5 4.5h3v-.75a.75.75 0 0 0-.75-.75h-1.5a.75.75 0 0 0-.75.75v.75ZM9.75 9a.75.75 0 0 1 .75.75v6a.75.75 0 0 1-1.5 0v-6A.75.75 0 0 1 9.75 9Zm4.5 0a.75.75 0 0 1 .75.75v6a.75.75 0 0 1-1.5 0v-6a.75.75 0 0 1 .75-.75Z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+
+                        <Link
+                          to={`/lists/${l.id}`}
+                          className="mt-3 inline-flex text-xs font-medium text-slate-600 underline-offset-2 hover:underline"
+                        >
+                          Open full list
+                        </Link>
+                      </div>
+                    );
+                  })
                 )}
               </div>
+            </Card>
+
+            <Card className="p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">List items</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {selectedList ? selectedList.name : "Choose a list to view its items."}
+                  </div>
+                </div>
+                {selectedList ? (
+                  <div className="text-sm font-semibold text-slate-900">{money(selectedListTotal)}</div>
+                ) : null}
+              </div>
+
+              {!selectedList ? (
+                <div className="mt-4 text-sm text-slate-600">No list selected.</div>
+              ) : listItems.length === 0 ? (
+                <div className="mt-4 text-sm text-slate-600">This list is empty.</div>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {listItems.map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-slate-200 px-3 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-slate-900">{item.name}</div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {money(item.price_cents)} each
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-semibold text-slate-900">x{item.qty}</div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {money(item.price_cents * item.qty)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
           </aside>
         </div>
