@@ -68,10 +68,9 @@ export function Admin() {
 
   const [threads, setThreads] = useState<OrderRow[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
-  const [chatOpen, setChatOpen] = useState(false);
 
+  const [isSelecting, setIsSelecting] = useState(false);
   const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
-  const [bulkAction, setBulkAction] = useState("");
 
   const [selectedOrder, setSelectedOrder] = useState<OrderRow | null>(null);
   const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
@@ -100,6 +99,30 @@ export function Admin() {
     const profile = profileMap[order.user_id];
     if (profile?.full_name?.trim()) return profile.full_name;
     return `Customer ${order.user_id.slice(0, 8)}`;
+  }
+
+  function getStatusClasses(status: string) {
+    if (status === "pending") {
+      return "bg-amber-200 text-amber-950 ring-1 ring-amber-300";
+    }
+
+    if (status === "shipped") {
+      return "bg-emerald-200 text-emerald-950 ring-1 ring-emerald-300";
+    }
+
+    if (status === "confirmed") {
+      return "bg-blue-200 text-blue-950 ring-1 ring-blue-300";
+    }
+
+    if (status === "delivered") {
+      return "bg-slate-200 text-slate-900 ring-1 ring-slate-300";
+    }
+
+    if (status === "cancelled") {
+      return "bg-red-200 text-red-950 ring-1 ring-red-300";
+    }
+
+    return "bg-white/15 text-white ring-1 ring-white/20";
   }
 
   async function loadProducts() {
@@ -140,6 +163,8 @@ export function Admin() {
         nextProfileMap[p.id] = p as Profile;
       }
       setProfileMap(nextProfileMap);
+    } else {
+      setProfileMap({});
     }
 
     if (!selectedChatId && next[0]) {
@@ -218,9 +243,9 @@ export function Admin() {
   }, []);
 
   useEffect(() => {
-    if (!selectedChatId || !chatOpen) return;
+    if (!selectedChatId) return;
     void loadSelectedOrder(selectedChatId);
-  }, [selectedChatId, chatOpen]);
+  }, [selectedChatId]);
 
   useEffect(() => {
     const channel = supabase
@@ -230,7 +255,7 @@ export function Admin() {
         { event: "*", schema: "public", table: "orders" },
         () => {
           void loadThreads();
-          if (selectedChatId && chatOpen) {
+          if (selectedChatId) {
             void loadSelectedOrder(selectedChatId);
           }
         }
@@ -240,7 +265,7 @@ export function Admin() {
         { event: "*", schema: "public", table: "order_messages" },
         () => {
           void loadThreads();
-          if (selectedChatId && chatOpen) {
+          if (selectedChatId) {
             void loadSelectedOrder(selectedChatId);
           }
         }
@@ -250,7 +275,7 @@ export function Admin() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [selectedChatId, chatOpen]);
+  }, [selectedChatId]);
 
   async function addItem(e: React.FormEvent) {
     e.preventDefault();
@@ -282,87 +307,105 @@ export function Admin() {
     await loadProducts();
   }
 
-  function openChat(orderId: string) {
-    setSelectedChatId(orderId);
-    setChatOpen(true);
-  }
-
-  function closeChat() {
-    setChatOpen(false);
-    setSelectedOrder(null);
-    setSelectedItems([]);
-    setSelectedMessages([]);
-    setReplyBody("");
-  }
-
   function toggleBulkSelection(orderId: string) {
     setSelectedBulkIds((prev) =>
       prev.includes(orderId) ? prev.filter((id) => id !== orderId) : [...prev, orderId]
     );
   }
 
-  async function applyBulkAction() {
-    if (!bulkAction || selectedBulkIds.length === 0) {
-      alert("Select an action and at least one chat.");
+  function startSelecting() {
+    setIsSelecting(true);
+    setSelectedBulkIds([]);
+  }
+
+  function cancelSelecting() {
+    setIsSelecting(false);
+    setSelectedBulkIds([]);
+  }
+
+  async function markSelectedAsShipped() {
+    if (selectedBulkIds.length === 0) {
+      alert("Select at least one chat first.");
       return;
     }
 
-    if (bulkAction === "shipped") {
-      const { error } = await supabase
-        .from("orders")
-        .update({ status: "shipped" })
-        .in("id", selectedBulkIds);
+    const ok = window.confirm("Are you sure you want to mark the selected chats as shipped?");
+    if (!ok) return;
 
-      if (error) {
-        alert(error.message);
-        return;
-      }
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: "shipped" })
+      .in("id", selectedBulkIds);
+
+    if (error) {
+      alert(error.message);
+      return;
     }
 
-    if (bulkAction === "delete") {
-      const { error: msgError } = await supabase
-        .from("order_messages")
-        .delete()
-        .in("order_id", selectedBulkIds);
-
-      if (msgError) {
-        alert(msgError.message);
-        return;
-      }
-
-      const { error: itemError } = await supabase
-        .from("order_items")
-        .delete()
-        .in("order_id", selectedBulkIds);
-
-      if (itemError) {
-        alert(itemError.message);
-        return;
-      }
-
-      const { error: orderError } = await supabase
-        .from("orders")
-        .delete()
-        .in("id", selectedBulkIds);
-
-      if (orderError) {
-        alert(orderError.message);
-        return;
-      }
-
-      if (selectedChatId && selectedBulkIds.includes(selectedChatId)) {
-        closeChat();
-        setSelectedChatId(null);
-      }
+    if (selectedChatId && selectedBulkIds.includes(selectedChatId)) {
+      await loadSelectedOrder(selectedChatId);
     }
 
-    setBulkAction("");
-    setSelectedBulkIds([]);
+    cancelSelecting();
+    await loadThreads();
+  }
+
+  async function deleteSelectedChats() {
+    if (selectedBulkIds.length === 0) {
+      alert("Select at least one chat first.");
+      return;
+    }
+
+    const ok = window.confirm("Are you sure you want to delete the selected chats?");
+    if (!ok) return;
+
+    const { error: msgError } = await supabase
+      .from("order_messages")
+      .delete()
+      .in("order_id", selectedBulkIds);
+
+    if (msgError) {
+      alert(msgError.message);
+      return;
+    }
+
+    const { error: itemError } = await supabase
+      .from("order_items")
+      .delete()
+      .in("order_id", selectedBulkIds);
+
+    if (itemError) {
+      alert(itemError.message);
+      return;
+    }
+
+    const { error: orderError } = await supabase
+      .from("orders")
+      .delete()
+      .in("id", selectedBulkIds);
+
+    if (orderError) {
+      alert(orderError.message);
+      return;
+    }
+
+    if (selectedChatId && selectedBulkIds.includes(selectedChatId)) {
+      setSelectedChatId(null);
+      setSelectedOrder(null);
+      setSelectedItems([]);
+      setSelectedMessages([]);
+      setReplyBody("");
+    }
+
+    cancelSelecting();
     await loadThreads();
   }
 
   async function markCurrentAsShipped() {
     if (!selectedChatId) return;
+
+    const ok = window.confirm("Are you sure you want to mark this order as shipped?");
+    if (!ok) return;
 
     const { error } = await supabase
       .from("orders")
@@ -433,7 +476,9 @@ export function Admin() {
         </div>
         <div>{a.country}</div>
         {a.phone ? <div className="mt-2">Phone: {a.phone}</div> : null}
-        {a.delivery_notes ? <div className="mt-2 text-slate-500">Notes: {a.delivery_notes}</div> : null}
+        {a.delivery_notes ? (
+          <div className="mt-2 text-slate-500">Notes: {a.delivery_notes}</div>
+        ) : null}
       </div>
     );
   }
@@ -543,69 +588,73 @@ export function Admin() {
                 <div>
                   <h2 className="text-lg font-semibold">Customer Chats</h2>
                   <p className="mt-1 text-sm text-slate-400">
-                    Real orders from Supabase.
+                    All pending requests and all chats.
                   </p>
                 </div>
 
-                {chatOpen && selectedChatId ? (
+                {!isSelecting ? (
                   <button
                     type="button"
-                    onClick={closeChat}
-                    className="rounded-xl border border-slate-600 px-3 py-2 text-xs text-slate-200 hover:bg-white/5"
+                    onClick={startSelecting}
+                    className="rounded-xl border border-slate-600 px-3 py-2 text-xs text-slate-100 hover:bg-white/10"
                   >
-                    Close chat
+                    Select
                   </button>
-                ) : null}
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={cancelSelecting}
+                      className="rounded-xl border border-slate-600 px-3 py-2 text-xs text-slate-100 hover:bg-white/10"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={markSelectedAsShipped}
+                      className="rounded-xl border border-emerald-400 bg-emerald-500/15 px-3 py-2 text-xs text-emerald-100 hover:bg-emerald-500/25"
+                    >
+                      Mark shipped
+                    </button>
+                    <button
+                      type="button"
+                      onClick={deleteSelectedChats}
+                      className="rounded-xl border border-red-400 bg-red-500/15 px-3 py-2 text-xs text-red-100 hover:bg-red-500/25"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="border-b border-slate-800 px-5 py-4">
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <select
-                  value={bulkAction}
-                  onChange={(e) => setBulkAction(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
-                >
-                  <option value="">Select action…</option>
-                  <option value="shipped">Mark selected as shipped</option>
-                  <option value="delete">Delete selected chats</option>
-                </select>
-
-                <button
-                  type="button"
-                  onClick={applyBulkAction}
-                  className="rounded-2xl bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90"
-                >
-                  Apply
-                </button>
-              </div>
-            </div>
-
-            <div className={`${chatOpen ? "max-h-[320px]" : "max-h-[720px]"} overflow-y-auto divide-y divide-slate-800`}>
+            <div className="max-h-[360px] divide-y divide-slate-800 overflow-y-auto">
               {threads.length === 0 ? (
                 <div className="px-5 py-6 text-sm text-slate-400">No order chats yet.</div>
               ) : (
                 threads.map((thread) => {
-                  const active = selectedChatId === thread.id && chatOpen;
+                  const active = selectedChatId === thread.id;
                   const checked = selectedBulkIds.includes(thread.id);
 
                   return (
                     <div
                       key={thread.id}
                       className={`flex items-start gap-3 px-5 py-4 transition ${
-                        active ? "bg-white/10" : "hover:bg-white/5"
+                        active ? "bg-white/10" : "bg-transparent hover:bg-white/5"
                       }`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleBulkSelection(thread.id)}
-                        className="mt-1 h-4 w-4 rounded"
-                      />
+                      {isSelecting ? (
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleBulkSelection(thread.id)}
+                          className="mt-1 h-4 w-4 rounded accent-slate-200"
+                        />
+                      ) : null}
 
                       <button
                         type="button"
-                        onClick={() => openChat(thread.id)}
+                        onClick={() => setSelectedChatId(thread.id)}
                         className="min-w-0 flex-1 text-left"
                       >
                         <div className="flex items-center justify-between gap-3">
@@ -622,7 +671,11 @@ export function Admin() {
                         </div>
 
                         <div className="mt-2 flex items-center gap-2 text-xs">
-                          <span className="rounded-full bg-white/10 px-2 py-1 text-slate-200">
+                          <span
+                            className={`rounded-full px-2.5 py-1 font-semibold ${getStatusClasses(
+                              thread.status
+                            )}`}
+                          >
                             {thread.status}
                           </span>
                           <span className="text-slate-500">
@@ -636,150 +689,145 @@ export function Admin() {
               )}
             </div>
 
-            {chatOpen ? (
-              <div className="border-t border-slate-800 bg-white p-5 text-slate-900">
-                {!selectedChatId ? (
-                  <div className="text-sm text-slate-600">Select a chat.</div>
-                ) : loadingChat ? (
-                  <div className="text-sm text-slate-600">Loading chat…</div>
-                ) : !selectedOrder ? (
-                  <div className="text-sm text-slate-600">Order not found.</div>
-                ) : (
-                  <>
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div>
-                        <div className="text-sm font-semibold text-slate-900">
-                          {getCustomerLabel(selectedOrder)}
-                        </div>
-                        <div className="mt-1 text-sm text-slate-600">
-                          Order #{selectedOrder.id.slice(0, 8)}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-500">
-                          {formatTime(selectedOrder.created_at)}
-                        </div>
+            <div className="border-t border-slate-800 bg-white p-5 text-slate-900">
+              {!selectedChatId ? (
+                <div className="text-sm text-slate-600">Select a chat.</div>
+              ) : loadingChat ? (
+                <div className="text-sm text-slate-600">Loading chat…</div>
+              ) : !selectedOrder ? (
+                <div className="text-sm text-slate-600">Order not found.</div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {getCustomerLabel(selectedOrder)}
                       </div>
-
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={markCurrentAsShipped}
-                          className="rounded-2xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 hover:bg-emerald-100"
+                      <div className="mt-1 text-sm text-slate-600">
+                        Order #{selectedOrder.id.slice(0, 8)}
+                      </div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClasses(
+                            selectedOrder.status
+                          )}`}
                         >
-                          Mark shipped
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={closeChat}
-                          className="rounded-2xl border px-3 py-2 text-sm hover:bg-slate-50"
-                        >
-                          Close
-                        </button>
+                          {selectedOrder.status}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {formatTime(selectedOrder.created_at)}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                      <div>
-                        <div className="mb-2 text-sm font-semibold">Order items</div>
-                        <div className="space-y-2">
-                          {selectedItems.map((item) => (
+                    <button
+                      type="button"
+                      onClick={markCurrentAsShipped}
+                      className="rounded-2xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 hover:bg-emerald-100"
+                    >
+                      Mark shipped
+                    </button>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div>
+                      <div className="mb-2 text-sm font-semibold">Order items</div>
+                      <div className="space-y-2">
+                        {selectedItems.map((item) => (
+                          <div
+                            key={item.id}
+                            className="flex items-center justify-between rounded-2xl border px-3 py-3 text-sm"
+                          >
+                            <div>
+                              {item.name} × {item.qty}
+                            </div>
+                            <div className="font-medium">
+                              {money(item.price_cents * item.qty)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-3 rounded-2xl border bg-slate-50 px-4 py-3 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span>Subtotal</span>
+                          <span>{money(selectedOrder.subtotal_cents)}</span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between">
+                          <span>Tax</span>
+                          <span>{money(selectedOrder.tax_cents)}</span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between font-semibold">
+                          <span>Total</span>
+                          <span>{money(selectedOrder.total_cents)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="mb-2 text-sm font-semibold">Delivery address</div>
+                      {renderAddress(selectedOrder.address_id)}
+                    </div>
+                  </div>
+
+                  <div className="mt-5">
+                    <div className="mb-2 text-sm font-semibold">Conversation</div>
+
+                    <div className="max-h-[300px] space-y-3 overflow-y-auto rounded-2xl border bg-slate-50 p-3">
+                      {selectedMessages.length === 0 ? (
+                        <div className="text-sm text-slate-600">No messages yet.</div>
+                      ) : (
+                        selectedMessages.map((message) => {
+                          const isAddress = message.message_type === "address";
+
+                          return (
                             <div
-                              key={item.id}
-                              className="flex items-center justify-between rounded-2xl border px-3 py-3 text-sm"
+                              key={message.id}
+                              className="rounded-2xl bg-white px-4 py-3 text-sm shadow-sm"
                             >
-                              <div>
-                                {item.name} × {item.qty}
+                              <div className="text-xs text-slate-500">
+                                {message.sender_user_id === selectedOrder.user_id
+                                  ? getCustomerLabel(selectedOrder)
+                                  : "Admin"}{" "}
+                                • {formatTime(message.created_at)}
                               </div>
-                              <div className="font-medium">
-                                {money(item.price_cents * item.qty)}
+
+                              <div className="mt-2">
+                                {isAddress ? renderAddress(message.address_id) : null}
+                                {!isAddress ? (
+                                  <div className="text-slate-800">
+                                    {message.body || "Empty message"}
+                                  </div>
+                                ) : null}
                               </div>
                             </div>
-                          ))}
-                        </div>
-
-                        <div className="mt-3 rounded-2xl border bg-slate-50 px-4 py-3 text-sm">
-                          <div className="flex items-center justify-between">
-                            <span>Subtotal</span>
-                            <span>{money(selectedOrder.subtotal_cents)}</span>
-                          </div>
-                          <div className="mt-1 flex items-center justify-between">
-                            <span>Tax</span>
-                            <span>{money(selectedOrder.tax_cents)}</span>
-                          </div>
-                          <div className="mt-1 flex items-center justify-between font-semibold">
-                            <span>Total</span>
-                            <span>{money(selectedOrder.total_cents)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="mb-2 text-sm font-semibold">Delivery address</div>
-                        {renderAddress(selectedOrder.address_id)}
-                      </div>
+                          );
+                        })
+                      )}
                     </div>
 
-                    <div className="mt-5">
-                      <div className="mb-2 text-sm font-semibold">Conversation</div>
-
-                      <div className="max-h-[300px] space-y-3 overflow-y-auto rounded-2xl border bg-slate-50 p-3">
-                        {selectedMessages.length === 0 ? (
-                          <div className="text-sm text-slate-600">No messages yet.</div>
-                        ) : (
-                          selectedMessages.map((message) => {
-                            const isAddress = message.message_type === "address";
-
-                            return (
-                              <div
-                                key={message.id}
-                                className="rounded-2xl bg-white px-4 py-3 text-sm shadow-sm"
-                              >
-                                <div className="text-xs text-slate-500">
-                                  {message.sender_user_id === selectedOrder.user_id
-                                    ? getCustomerLabel(selectedOrder)
-                                    : "Admin"}{" "}
-                                  • {formatTime(message.created_at)}
-                                </div>
-
-                                <div className="mt-2">
-                                  {isAddress ? renderAddress(message.address_id) : null}
-                                  {!isAddress ? (
-                                    <div className="text-slate-800">
-                                      {message.body || "Empty message"}
-                                    </div>
-                                  ) : null}
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-
-                      <form onSubmit={sendReply} className="mt-4 flex gap-2">
-                        <input
-                          value={replyBody}
-                          onChange={(e) => setReplyBody(e.target.value)}
-                          placeholder="Reply to customer..."
-                          className="w-full rounded-2xl border px-3 py-2 text-sm"
-                        />
-                        <button
-                          type="submit"
-                          disabled={sendingReply || !replyBody.trim()}
-                          className="rounded-2xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
-                        >
-                          {sendingReply ? "Sending..." : "Send"}
-                        </button>
-                      </form>
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : null}
+                    <form onSubmit={sendReply} className="mt-4 flex gap-2">
+                      <input
+                        value={replyBody}
+                        onChange={(e) => setReplyBody(e.target.value)}
+                        placeholder="Reply to customer..."
+                        className="w-full rounded-2xl border px-3 py-2 text-sm"
+                      />
+                      <button
+                        type="submit"
+                        disabled={sendingReply || !replyBody.trim()}
+                        className="rounded-2xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
+                      >
+                        {sendingReply ? "Sending..." : "Send"}
+                      </button>
+                    </form>
+                  </div>
+                </>
+              )}
+            </div>
           </Card>
         </div>
       </div>
     </main>
   );
 }
-
-
