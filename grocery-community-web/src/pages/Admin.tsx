@@ -11,11 +11,61 @@ type Product = {
   in_stock: boolean;
 };
 
+type ChatThread = {
+  id: string;
+  customer_name: string;
+  last_message: string;
+  last_message_at: string;
+  avatar_url?: string | null;
+  unread?: boolean;
+};
+
 export function Admin() {
   const [items, setItems] = useState<Product[]>([]);
   const [name, setName] = useState("");
   const [price, setPrice] = useState<number>(1);
 
+  const [selectedChatId, setSelectedChatId] = useState<string>("1");
+
+const [threads] = useState<ChatThread[]>([
+  {
+    id: "1",
+    customer_name: "Sarah Johnson",
+    last_message: "Hi, I want to confirm this order before delivery.",
+    last_message_at: "1h",
+    avatar_url: "https://i.pravatar.cc/100?img=32",
+    unread: true,
+  },
+  {
+    id: "2",
+    customer_name: "Michael Brown",
+    last_message: "Can you replace apples with bananas?",
+    last_message_at: "5h",
+    avatar_url: "https://i.pravatar.cc/100?img=12",
+  },
+  {
+    id: "3",
+    customer_name: "Emily Davis",
+    last_message: "Please send to my home address.",
+    last_message_at: "17h",
+    avatar_url: "https://i.pravatar.cc/100?img=47",
+  },
+  {
+    id: "4",
+    customer_name: "Daniel Wilson",
+    last_message: "I will be available after 6 PM.",
+    last_message_at: "1d",
+    avatar_url: null,
+  },
+  {
+    id: "5",
+    customer_name: "Olivia Taylor",
+    last_message: "Thank you. Looking forward to delivery.",
+    last_message_at: "3d",
+    avatar_url: "https://i.pravatar.cc/100?img=24",
+  },
+]);
+  
   async function load() {
     const { data } = await supabase.from("products").select("*").order("name");
     setItems((data ?? []) as Product[]);
@@ -151,3 +201,4 @@ export function Admin() {
     </main>
   );
 }
+
