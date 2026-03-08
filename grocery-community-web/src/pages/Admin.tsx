@@ -451,13 +451,13 @@ export function Admin() {
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => deleteItem(item.id)}
-                      className="shrink-0 rounded-2xl border px-3 py-2 text-sm hover:bg-slate-50"
-                    >
-                      Delete
-                    </button>
+<button
+  type="button"
+  onClick={() => deleteItem(item.id)}
+  className="shrink-0 rounded-2xl border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 hover:bg-red-100"
+>
+  Delete
+</button>
                   </div>
                 ))
               )}
@@ -643,3 +643,4 @@ export function Admin() {
     </main>
   );
 }
+
