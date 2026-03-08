@@ -27,6 +27,24 @@ export function Admin() {
 
   const [selectedChatId, setSelectedChatId] = useState<string>("1");
 
+  function getAvatar(name: string, avatarUrl?: string | null) {
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={name}
+        className="h-14 w-14 rounded-full object-cover"
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-200 text-lg font-semibold text-slate-600">
+      {name.charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
 const [threads] = useState<ChatThread[]>([
   {
     id: "1",
@@ -198,7 +216,60 @@ const [threads] = useState<ChatThread[]>([
           </div>
         </Card>
       </div>
+      <Card className="overflow-hidden border border-slate-800 bg-[#0b0b0c] p-0 text-white">
+  <div className="border-b border-slate-800 px-5 py-4">
+    <h2 className="text-lg font-semibold">Customer Chats</h2>
+    <p className="mt-1 text-sm text-slate-400">
+      View order conversations and reply to customers.
+    </p>
+  </div>
+
+  <div className="divide-y divide-slate-800">
+    {threads.map((thread) => {
+      const active = selectedChatId === thread.id;
+
+      return (
+        <button
+          key={thread.id}
+          type="button"
+          onClick={() => setSelectedChatId(thread.id)}
+          className={`flex w-full items-center gap-4 px-5 py-4 text-left transition ${
+            active
+              ? "bg-white/10"
+              : "bg-transparent hover:bg-white/5"
+          }`}
+        >
+          <div className="shrink-0">
+            {getAvatar(thread.customer_name, thread.avatar_url)}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-3">
+              <div className="truncate text-[15px] font-semibold text-white">
+                {thread.customer_name}
+              </div>
+              <div className="shrink-0 text-sm text-slate-400">
+                {thread.last_message_at}
+              </div>
+            </div>
+
+            <div className="mt-1 flex items-center gap-2">
+              <p className="truncate text-sm text-slate-400">
+                {thread.last_message}
+              </p>
+
+              {thread.unread ? (
+                <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+              ) : null}
+            </div>
+          </div>
+        </button>
+      );
+    })}
+  </div>
+</Card>
     </main>
   );
 }
+
 
