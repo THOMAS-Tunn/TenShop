@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import type { SessionUser } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { Card } from "../components/Card";
-import { useNavigate } from "react-router-dom";
 
 type Product = {
   id: string;
@@ -26,12 +25,6 @@ type Address = {
   is_default: boolean;
 };
 
-const navigate = useNavigate();
-const [addresses, setAddresses] = useState<Address[]>([]);
-const [selectedAddressId, setSelectedAddressId] = useState<string>("");
-const [customerNote, setCustomerNote] = useState("");
-const [submittingOrder, setSubmittingOrder] = useState(false);
-
 type ListItem = {
   id: string;
   list_id: string;
@@ -44,6 +37,8 @@ type ListItem = {
 
 export function ListDetail({ user }: { user: SessionUser }) {
   const { id: listId } = useParams();
+  const navigate = useNavigate();
+
   const [items, setItems] = useState<ListItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -51,14 +46,23 @@ export function ListDetail({ user }: { user: SessionUser }) {
   const [results, setResults] = useState<Product[]>([]);
   const [searching, setSearching] = useState(false);
 
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string>("");
+  const [customerNote, setCustomerNote] = useState("");
+  const [submittingOrder, setSubmittingOrder] = useState(false);
+
   const money = useMemo(
     () => (cents: number) =>
-      new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(cents / 100),
+      new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: "USD",
+      }).format(cents / 100),
     []
   );
 
   async function loadItems() {
     if (!listId) return;
+
     setLoading(true);
 
     const { data, error } = await supabase
@@ -68,42 +72,46 @@ export function ListDetail({ user }: { user: SessionUser }) {
       .eq("user_id", user.id)
       .order("name", { ascending: true });
 
-    if (error) console.error(error);
-    setItems((data ?? []) as any);
+    if (error) {
+      console.error(error);
+    }
+
+    setItems((data ?? []) as ListItem[]);
     setLoading(false);
   }
 
-async function loadAddresses() {
-  const { data, error } = await supabase
-    .from("user_addresses")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("is_default", { ascending: false })
-    .order("created_at", { ascending: false });
+  async function loadAddresses() {
+    const { data, error } = await supabase
+      .from("user_addresses")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: false });
 
-  if (error) {
-    alert(error.message);
-    return;
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    const next = (data ?? []) as Address[];
+    setAddresses(next);
+
+    const defaultAddress = next.find((a) => a.is_default);
+    if (defaultAddress) {
+      setSelectedAddressId(defaultAddress.id);
+    } else if (next[0]) {
+      setSelectedAddressId(next[0].id);
+    } else {
+      setSelectedAddressId("");
+    }
   }
 
-  const next = (data ?? []) as Address[];
-  setAddresses(next);
-
-  const defaultAddress = next.find((a) => a.is_default);
-  if (defaultAddress) {
-    setSelectedAddressId(defaultAddress.id);
-  } else if (next[0]) {
-    setSelectedAddressId(next[0].id);
-  }
-}
-  
   useEffect(() => {
     void loadItems();
     void loadAddresses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listId]);
 
-  // Product search (simple debounce)
   useEffect(() => {
     if (!q.trim()) {
       setResults([]);
@@ -112,6 +120,7 @@ async function loadAddresses() {
 
     const t = setTimeout(async () => {
       setSearching(true);
+
       const { data, error } = await supabase
         .from("products")
         .select("id,name,price_cents,category,image_url")
@@ -119,8 +128,11 @@ async function loadAddresses() {
         .order("name")
         .limit(8);
 
-      if (error) console.error(error);
-      setResults((data ?? []) as any);
+      if (error) {
+        console.error(error);
+      }
+
+      setResults((data ?? []) as Product[]);
       setSearching(false);
     }, 250);
 
@@ -130,7 +142,6 @@ async function loadAddresses() {
   async function addProduct(p: Product) {
     if (!listId) return;
 
-    // If item exists, increment qty; else insert.
     const { data: existing, error: readErr } = await supabase
       .from("shopping_list_items")
       .select("id, qty")
@@ -150,7 +161,10 @@ async function loadAddresses() {
         .update({ qty: (existing.qty ?? 1) + 1 })
         .eq("id", existing.id);
 
-      if (updErr) alert(updErr.message);
+      if (updErr) {
+        alert(updErr.message);
+      }
+
       await loadItems();
       return;
     }
@@ -164,112 +178,41 @@ async function loadAddresses() {
       qty: 1,
     });
 
-    if (insErr) alert(insErr.message);
+    if (insErr) {
+      alert(insErr.message);
+    }
+
     await loadItems();
   }
 
   async function setQty(itemId: string, nextQty: number) {
     if (Number.isNaN(nextQty)) return;
 
-    // If qty <= 0, delete item
     if (nextQty <= 0) {
-      const { error } = await supabase.from("shopping_list_items").delete().eq("id", itemId);
-      if (error) alert(error.message);
+      const { error } = await supabase
+        .from("shopping_list_items")
+        .delete()
+        .eq("id", itemId);
+
+      if (error) {
+        alert(error.message);
+      }
+
       await loadItems();
       return;
     }
 
-    const { error } = await supabase.from("shopping_list_items").update({ qty: nextQty }).eq("id", itemId);
-    if (error) alert(error.message);
+    const { error } = await supabase
+      .from("shopping_list_items")
+      .update({ qty: nextQty })
+      .eq("id", itemId);
+
+    if (error) {
+      alert(error.message);
+    }
+
     await loadItems();
   }
-
-  async function submitOrder() {
-  if (!listId) return;
-
-  if (items.length === 0) {
-    alert("Your list is empty.");
-    return;
-  }
-
-  if (!selectedAddressId) {
-    alert("Please add/select a delivery address first.");
-    return;
-  }
-
-  setSubmittingOrder(true);
-
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .insert({
-      user_id: user.id,
-      list_id: listId,
-      address_id: selectedAddressId,
-      subtotal_cents: subtotalCents,
-      tax_cents: taxCents,
-      total_cents: totalCents,
-      customer_note: customerNote || null,
-      status: "pending",
-    })
-    .select("id")
-    .single();
-
-  if (orderError || !order) {
-    setSubmittingOrder(false);
-    alert(orderError?.message ?? "Could not create order.");
-    return;
-  }
-
-  const orderItemsPayload = items.map((it) => ({
-    order_id: order.id,
-    product_id: it.product_id,
-    name: it.name,
-    price_cents: it.price_cents ?? 0,
-    qty: it.qty,
-  }));
-
-  const { error: itemsError } = await supabase.from("order_items").insert(orderItemsPayload);
-  if (itemsError) {
-    setSubmittingOrder(false);
-    alert(itemsError.message);
-    return;
-  }
-
-  const messagesPayload = [
-    {
-      order_id: order.id,
-      sender_user_id: user.id,
-      message_type: "system",
-      body: `Order created with ${items.length} item(s).`,
-    },
-    {
-      order_id: order.id,
-      sender_user_id: user.id,
-      message_type: "address",
-      address_id: selectedAddressId,
-      body: null,
-    },
-  ];
-
-  if (customerNote.trim()) {
-    messagesPayload.push({
-      order_id: order.id,
-      sender_user_id: user.id,
-      message_type: "text",
-      body: customerNote.trim(),
-    } as any);
-  }
-
-  const { error: messagesError } = await supabase.from("order_messages").insert(messagesPayload);
-  setSubmittingOrder(false);
-
-  if (messagesError) {
-    alert(messagesError.message);
-    return;
-  }
-
-  navigate(`/orders/${order.id}`);
-}
 
   const subtotalCents = useMemo(() => {
     return items.reduce((sum, it) => sum + (it.price_cents ?? 0) * (it.qty ?? 0), 0);
@@ -278,17 +221,117 @@ async function loadAddresses() {
   const taxCents = Math.round(subtotalCents * 0.07);
   const totalCents = subtotalCents + taxCents;
 
-  
+  async function submitOrder() {
+    if (!listId) return;
+
+    if (items.length === 0) {
+      alert("Your list is empty.");
+      return;
+    }
+
+    if (!selectedAddressId) {
+      alert("Please add or select a delivery address first.");
+      return;
+    }
+
+    setSubmittingOrder(true);
+
+    const { data: order, error: orderError } = await supabase
+      .from("orders")
+      .insert({
+        user_id: user.id,
+        list_id: listId,
+        address_id: selectedAddressId,
+        subtotal_cents: subtotalCents,
+        tax_cents: taxCents,
+        total_cents: totalCents,
+        customer_note: customerNote.trim() || null,
+        status: "pending",
+      })
+      .select("id")
+      .single();
+
+    if (orderError || !order) {
+      setSubmittingOrder(false);
+      alert(orderError?.message ?? "Could not create order.");
+      return;
+    }
+
+    const orderItemsPayload = items.map((it) => ({
+      order_id: order.id,
+      product_id: it.product_id,
+      name: it.name,
+      price_cents: it.price_cents ?? 0,
+      qty: it.qty,
+    }));
+
+    const { error: itemsError } = await supabase
+      .from("order_items")
+      .insert(orderItemsPayload);
+
+    if (itemsError) {
+      setSubmittingOrder(false);
+      alert(itemsError.message);
+      return;
+    }
+
+    const messagesPayload: Array<{
+      order_id: string;
+      sender_user_id: string;
+      message_type: "system" | "address" | "text";
+      body: string | null;
+      address_id?: string;
+    }> = [
+      {
+        order_id: order.id,
+        sender_user_id: user.id,
+        message_type: "system",
+        body: `Order created with ${items.length} item(s).`,
+      },
+      {
+        order_id: order.id,
+        sender_user_id: user.id,
+        message_type: "address",
+        address_id: selectedAddressId,
+        body: null,
+      },
+    ];
+
+    if (customerNote.trim()) {
+      messagesPayload.push({
+        order_id: order.id,
+        sender_user_id: user.id,
+        message_type: "text",
+        body: customerNote.trim(),
+      });
+    }
+
+    const { error: messagesError } = await supabase
+      .from("order_messages")
+      .insert(messagesPayload);
+
+    setSubmittingOrder(false);
+
+    if (messagesError) {
+      alert(messagesError.message);
+      return;
+    }
+
+    navigate(`/orders/${order.id}`);
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       <div className="mb-4">
         <h1 className="text-2xl font-semibold">Your list</h1>
-        <p className="text-sm text-slate-600">Search products, add to cart, and update quantities.</p>
+        <p className="text-sm text-slate-600">
+          Search products, add to cart, and update quantities.
+        </p>
       </div>
 
       <Card className="p-4">
         <div className="text-sm font-semibold">Add items</div>
+
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -311,7 +354,9 @@ async function loadAddresses() {
                 >
                   <div>
                     <div className="font-medium">{p.name}</div>
-                    <div className="text-xs text-slate-500">{p.category ?? "Uncategorized"}</div>
+                    <div className="text-xs text-slate-500">
+                      {p.category ?? "Uncategorized"}
+                    </div>
                   </div>
                   <div className="font-semibold">{money(p.price_cents)}</div>
                 </button>
@@ -328,11 +373,16 @@ async function loadAddresses() {
           {loading ? (
             <div className="mt-3 text-sm text-slate-600">Loading…</div>
           ) : items.length === 0 ? (
-            <div className="mt-3 text-sm text-slate-600">No items yet. Search above to add.</div>
+            <div className="mt-3 text-sm text-slate-600">
+              No items yet. Search above to add.
+            </div>
           ) : (
             <div className="mt-3 space-y-3">
               {items.map((it) => (
-                <div key={it.id} className="flex items-center justify-between gap-3 rounded-2xl border px-3 py-3">
+                <div
+                  key={it.id}
+                  className="flex items-center justify-between gap-3 rounded-2xl border px-3 py-3"
+                >
                   <div>
                     <div className="text-sm font-medium">{it.name}</div>
                     <div className="text-xs text-slate-500">
@@ -358,64 +408,65 @@ async function loadAddresses() {
           )}
         </Card>
 
-<Card className="p-4">
-  <div className="text-sm font-semibold">Order total</div>
+        <Card className="p-4">
+          <div className="text-sm font-semibold">Order total</div>
 
-  <div className="mt-3 space-y-2 text-sm">
-    <div className="flex items-center justify-between">
-      <span className="text-slate-600">Subtotal</span>
-      <span className="font-semibold">{money(subtotalCents)}</span>
-    </div>
-    <div className="flex items-center justify-between">
-      <span className="text-slate-600">Tax (7%)</span>
-      <span className="font-semibold">{money(taxCents)}</span>
-    </div>
-    <div className="h-px bg-slate-200" />
-    <div className="flex items-center justify-between">
-      <span className="text-slate-900">Total</span>
-      <span className="text-lg font-semibold">{money(totalCents)}</span>
-    </div>
-  </div>
+          <div className="mt-3 space-y-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-600">Subtotal</span>
+              <span className="font-semibold">{money(subtotalCents)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-600">Tax (7%)</span>
+              <span className="font-semibold">{money(taxCents)}</span>
+            </div>
+            <div className="h-px bg-slate-200" />
+            <div className="flex items-center justify-between">
+              <span className="text-slate-900">Total</span>
+              <span className="text-lg font-semibold">{money(totalCents)}</span>
+            </div>
+          </div>
 
-  <div className="mt-4">
-    <label className="mb-1 block text-sm font-medium text-slate-700">
-      Delivery address
-    </label>
-    <select
-      value={selectedAddressId}
-      onChange={(e) => setSelectedAddressId(e.target.value)}
-      className="w-full rounded-2xl border px-3 py-2 text-sm"
-    >
-      <option value="">Select address…</option>
-      {addresses.map((a) => (
-        <option key={a.id} value={a.id}>
-          {(a.label ?? "Address")} — {a.street_1}, {a.city}
-        </option>
-      ))}
-    </select>
-  </div>
+          <div className="mt-4">
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Delivery address
+            </label>
+            <select
+              value={selectedAddressId}
+              onChange={(e) => setSelectedAddressId(e.target.value)}
+              className="w-full rounded-2xl border px-3 py-2 text-sm"
+            >
+              <option value="">Select address…</option>
+              {addresses.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {(a.label ?? "Address")} — {a.street_1}, {a.city}
+                </option>
+              ))}
+            </select>
+          </div>
 
-  <div className="mt-4">
-    <label className="mb-1 block text-sm font-medium text-slate-700">
-      Note to admin
-    </label>
-    <textarea
-      value={customerNote}
-      onChange={(e) => setCustomerNote(e.target.value)}
-      placeholder="Optional note about delivery, substitutions, timing..."
-      className="w-full rounded-2xl border px-3 py-2 text-sm"
-      rows={4}
-    />
-  </div>
+          <div className="mt-4">
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Note to admin
+            </label>
+            <textarea
+              value={customerNote}
+              onChange={(e) => setCustomerNote(e.target.value)}
+              placeholder="Optional note about delivery, substitutions, timing..."
+              className="w-full rounded-2xl border px-3 py-2 text-sm"
+              rows={4}
+            />
+          </div>
 
-  <button
-    disabled={items.length === 0 || submittingOrder}
-    className="mt-4 w-full rounded-2xl bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-60"
-    onClick={submitOrder}
-  >
-    {submittingOrder ? "Sending order..." : "Send order request"}
-  </button>
-</Card>
+          <button
+            type="button"
+            disabled={items.length === 0 || submittingOrder}
+            className="mt-4 w-full rounded-2xl bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-60"
+            onClick={submitOrder}
+          >
+            {submittingOrder ? "Sending order..." : "Send order request"}
+          </button>
+        </Card>
       </div>
     </main>
   );
