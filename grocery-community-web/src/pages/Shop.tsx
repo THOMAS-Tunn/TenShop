@@ -326,7 +326,7 @@ export function Shop({ user }: { user: SessionUser }) {
                           key={property}
                           className="rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-700"
                         >
-                          {property}
+                          {tag}
                         </span>
                       ))}
                     </div>
