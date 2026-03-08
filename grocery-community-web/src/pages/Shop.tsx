@@ -242,7 +242,7 @@ export function Shop({ user }: { user: SessionUser }) {
             </div>
           </Card>
 
-          <Card className="p-5">
+          {/* <Card className="p-5">
             <div className="text-sm font-semibold">Figma mapping checklist</div>
             <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-700">
               <li>Export colors/typography → Tailwind theme.</li>
@@ -250,7 +250,7 @@ export function Shop({ user }: { user: SessionUser }) {
               <li>Match spacing + corner radius tokens.</li>
               <li>Replace dummy Shop + Lists screens.</li>
             </ol>
-          </Card>
+          </Card> */}
         </aside>
       </div>
     </main>
