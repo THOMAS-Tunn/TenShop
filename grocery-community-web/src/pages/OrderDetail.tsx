@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Card } from "../components/Card";
 import type { SessionUser } from "../lib/auth";
 import { supabase } from "../lib/supabase";
@@ -13,6 +13,8 @@ type Order = {
   customer_note: string | null;
   address_id: string;
   created_at: string;
+  admin_deleted_at: string | null;
+  admin_deleted_by: string | null;
 };
 
 type OrderItem = {
@@ -48,6 +50,8 @@ type OrderMessage = {
 
 export function OrderDetail({ user }: { user: SessionUser }) {
   const { id } = useParams();
+  const navigate = useNavigate();
+
   const [order, setOrder] = useState<Order | null>(null);
   const [items, setItems] = useState<OrderItem[]>([]);
   const [messages, setMessages] = useState<OrderMessage[]>([]);
@@ -55,6 +59,7 @@ export function OrderDetail({ user }: { user: SessionUser }) {
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [deletingChat, setDeletingChat] = useState(false);
 
   const money = useMemo(
     () => (cents: number) =>
@@ -70,7 +75,11 @@ export function OrderDetail({ user }: { user: SessionUser }) {
         supabase.from("orders").select("*").eq("id", id).single(),
         supabase.from("order_items").select("*").eq("order_id", id).order("name"),
         supabase.from("order_messages").select("*").eq("order_id", id).order("created_at"),
-        supabase.from("user_addresses").select("*").eq("user_id", user.id).order("is_default", { ascending: false }),
+        supabase
+          .from("user_addresses")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("is_default", { ascending: false }),
       ]);
 
     setOrder(orderData as Order);
@@ -93,11 +102,31 @@ export function OrderDetail({ user }: { user: SessionUser }) {
       const map: Record<string, Address> = {};
       for (const a of addresses ?? []) map[a.id] = a as Address;
       setAddressMap(map);
+    } else {
+      setAddressMap({});
     }
   }
 
   useEffect(() => {
     void loadAll();
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`customer-order-${id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
+        void loadAll();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_messages" }, () => {
+        void loadAll();
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [id]);
 
   async function sendMessage(e: React.FormEvent) {
@@ -139,6 +168,52 @@ export function OrderDetail({ user }: { user: SessionUser }) {
     }
 
     await loadAll();
+  }
+
+  async function deleteChat() {
+    if (!id) return;
+
+    const ok = window.confirm("Are you sure you want to delete this chat?");
+    if (!ok) return;
+
+    setDeletingChat(true);
+
+    const { error: messageError } = await supabase
+      .from("order_messages")
+      .delete()
+      .eq("order_id", id);
+
+    if (messageError) {
+      setDeletingChat(false);
+      alert(messageError.message);
+      return;
+    }
+
+    const { error: itemError } = await supabase
+      .from("order_items")
+      .delete()
+      .eq("order_id", id);
+
+    if (itemError) {
+      setDeletingChat(false);
+      alert(itemError.message);
+      return;
+    }
+
+    const { error: orderError } = await supabase
+      .from("orders")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    setDeletingChat(false);
+
+    if (orderError) {
+      alert(orderError.message);
+      return;
+    }
+
+    navigate("/chat");
   }
 
   function renderAddress(addressId: string | null | undefined) {
@@ -207,11 +282,31 @@ export function OrderDetail({ user }: { user: SessionUser }) {
         <Card className="p-5">
           <div className="text-sm font-semibold">Order chat</div>
 
+          {order?.admin_deleted_at ? (
+            <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-4">
+              <div className="text-sm font-semibold text-amber-900">
+                This chat was deleted by admin.
+              </div>
+              <p className="mt-1 text-sm text-amber-800">
+                You can still review it here. Do you want to delete it too?
+              </p>
+              <button
+                type="button"
+                onClick={deleteChat}
+                disabled={deletingChat}
+                className="mt-3 rounded-2xl border border-red-300 bg-red-100 px-4 py-2 text-sm font-semibold text-red-900 hover:bg-red-200 disabled:opacity-60"
+              >
+                {deletingChat ? "Deleting..." : "Delete this chat"}
+              </button>
+            </div>
+          ) : null}
+
           <div className="mt-4 space-y-3">
             {messages.map((m) => (
               <div key={m.id} className="rounded-2xl border px-4 py-3">
                 <div className="text-xs text-slate-500">
-                  {m.sender_user_id === user.id ? "You" : "Admin"} • {new Date(m.created_at).toLocaleString()}
+                  {m.sender_user_id === user.id ? "You" : "Admin"} •{" "}
+                  {new Date(m.created_at).toLocaleString()}
                 </div>
 
                 <div className="mt-2">
