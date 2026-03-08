@@ -27,6 +27,11 @@ type ListItem = {
   price_cents: number;
 };
 
+type PendingItemAction = {
+  id: string;
+  action: "inc" | "dec" | "remove";
+};
+
 export function Shop({ user }: { user: SessionUser }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [lists, setLists] = useState<List[]>([]);
@@ -36,6 +41,7 @@ export function Shop({ user }: { user: SessionUser }) {
   const [busy, setBusy] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [deletingListId, setDeletingListId] = useState<string | null>(null);
+  const [pendingItemAction, setPendingItemAction] = useState<PendingItemAction | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   useEffect(() => {
@@ -174,6 +180,51 @@ export function Shop({ user }: { user: SessionUser }) {
       if (selectedListId === listId) {
         setSelectedListId(nextLists[0]?.id ?? null);
       }
+    }
+  }
+
+  async function updateListItemQty(item: ListItem, nextQty: number) {
+    if (nextQty <= 0) {
+      await removeListItem(item.id);
+      return;
+    }
+
+    const previousItems = listItems;
+    setPendingItemAction({ id: item.id, action: nextQty > item.qty ? "inc" : "dec" });
+    setListItems((current) =>
+      current.map((entry) => (entry.id === item.id ? { ...entry, qty: nextQty } : entry))
+    );
+
+    const { error } = await supabase
+      .from("shopping_list_items")
+      .update({ qty: nextQty })
+      .eq("id", item.id)
+      .eq("user_id", user.id);
+
+    setPendingItemAction(null);
+
+    if (error) {
+      setListItems(previousItems);
+      alert(error.message);
+    }
+  }
+
+  async function removeListItem(itemId: string) {
+    const previousItems = listItems;
+    setPendingItemAction({ id: itemId, action: "remove" });
+    setListItems((current) => current.filter((entry) => entry.id !== itemId));
+
+    const { error } = await supabase
+      .from("shopping_list_items")
+      .delete()
+      .eq("id", itemId)
+      .eq("user_id", user.id);
+
+    setPendingItemAction(null);
+
+    if (error) {
+      setListItems(previousItems);
+      alert(error.message);
     }
   }
 
@@ -440,24 +491,74 @@ export function Shop({ user }: { user: SessionUser }) {
                 <div className="mt-4 text-sm text-slate-600">This list is empty.</div>
               ) : (
                 <div className="mt-4 space-y-3">
-                  {listItems.map((item) => (
-                    <div key={item.id} className="rounded-2xl border border-slate-200 px-3 py-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-medium text-slate-900">{item.name}</div>
-                          <div className="mt-1 text-xs text-slate-500">
-                            {money(item.price_cents)} each
+                  {listItems.map((item) => {
+                    const isPending = pendingItemAction?.id === item.id;
+
+                    return (
+                      <div key={item.id} className="rounded-2xl border border-slate-200 px-3 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium text-slate-900">{item.name}</div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              {money(item.price_cents)} each
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-semibold text-slate-900">
+                              {money(item.price_cents * item.qty)}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500">{item.qty} in list</div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-sm font-semibold text-slate-900">x{item.qty}</div>
-                          <div className="mt-1 text-xs text-slate-500">
-                            {money(item.price_cents * item.qty)}
+
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                          <div className="inline-flex items-center rounded-2xl border border-slate-200 bg-white">
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => void updateListItemQty(item, item.qty - 1)}
+                              className="px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+                            >
+                              −
+                            </button>
+                            <div className="min-w-[3rem] px-3 text-center text-sm font-semibold text-slate-900">
+                              {item.qty}
+                            </div>
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => void updateListItemQty(item, item.qty + 1)}
+                              className="px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+                            >
+                              +
+                            </button>
                           </div>
+
+                          <button
+                            type="button"
+                            aria-label={`Remove ${item.name}`}
+                            title="Remove item"
+                            disabled={isPending}
+                            onClick={() => void removeListItem(item.id)}
+                            className="rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 transition hover:bg-red-100 disabled:opacity-60"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              className="h-4 w-4"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M9 3.75A2.25 2.25 0 0 1 11.25 1.5h1.5A2.25 2.25 0 0 1 15 3.75V4.5h3.75a.75.75 0 0 1 0 1.5h-.52l-.76 12.1A2.25 2.25 0 0 1 15.22 20.25H8.78a2.25 2.25 0 0 1-2.25-2.15L5.77 6H5.25a.75.75 0 0 1 0-1.5H9v-.75ZM10.5 4.5h3v-.75a.75.75 0 0 0-.75-.75h-1.5a.75.75 0 0 0-.75.75v.75ZM9.75 9a.75.75 0 0 1 .75.75v6a.75.75 0 0 1-1.5 0v-6A.75.75 0 0 1 9.75 9Zm4.5 0a.75.75 0 0 1 .75.75v6a.75.75 0 0 1-1.5 0v-6a.75.75 0 0 1 .75-.75Z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          </button>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </Card>
