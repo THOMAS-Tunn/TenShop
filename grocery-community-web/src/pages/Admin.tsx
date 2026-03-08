@@ -21,6 +21,8 @@ type OrderRow = {
   customer_note: string | null;
   address_id: string;
   created_at: string;
+  admin_deleted_at: string | null;
+  admin_deleted_by: string | null;
 };
 
 type OrderItem = {
@@ -103,26 +105,21 @@ export function Admin() {
 
   function getStatusClasses(status: string) {
     if (status === "pending") {
-      return "bg-amber-200 text-amber-950 ring-1 ring-amber-300";
+      return "bg-amber-300 text-amber-950 ring-1 ring-amber-400";
     }
-
     if (status === "shipped") {
-      return "bg-emerald-200 text-emerald-950 ring-1 ring-emerald-300";
+      return "bg-emerald-200 text-emerald-950 ring-1 ring-emerald-400";
     }
-
     if (status === "confirmed") {
-      return "bg-blue-200 text-blue-950 ring-1 ring-blue-300";
+      return "bg-blue-200 text-blue-950 ring-1 ring-blue-400";
     }
-
     if (status === "delivered") {
       return "bg-slate-200 text-slate-900 ring-1 ring-slate-300";
     }
-
     if (status === "cancelled") {
-      return "bg-red-200 text-red-950 ring-1 ring-red-300";
+      return "bg-red-200 text-red-950 ring-1 ring-red-400";
     }
-
-    return "bg-white/15 text-white ring-1 ring-white/20";
+    return "bg-white/20 text-white ring-1 ring-white/25";
   }
 
   async function loadProducts() {
@@ -139,7 +136,10 @@ export function Admin() {
   async function loadThreads() {
     const { data, error } = await supabase
       .from("orders")
-      .select("id,user_id,status,subtotal_cents,tax_cents,total_cents,customer_note,address_id,created_at")
+      .select(
+        "id,user_id,status,subtotal_cents,tax_cents,total_cents,customer_note,address_id,created_at,admin_deleted_at,admin_deleted_by"
+      )
+      .is("admin_deleted_at", null)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -170,6 +170,10 @@ export function Admin() {
     if (!selectedChatId && next[0]) {
       setSelectedChatId(next[0].id);
     }
+
+    if (selectedChatId && !next.some((x) => x.id === selectedChatId)) {
+      closeChat();
+    }
   }
 
   async function loadSelectedOrder(orderId: string) {
@@ -177,7 +181,9 @@ export function Admin() {
 
     const { data: orderData, error: orderError } = await supabase
       .from("orders")
-      .select("id,user_id,status,subtotal_cents,tax_cents,total_cents,customer_note,address_id,created_at")
+      .select(
+        "id,user_id,status,subtotal_cents,tax_cents,total_cents,customer_note,address_id,created_at,admin_deleted_at,admin_deleted_by"
+      )
       .eq("id", orderId)
       .single();
 
@@ -350,51 +356,42 @@ export function Admin() {
     await loadThreads();
   }
 
-  async function deleteSelectedChats() {
+  async function hideSelectedChatsForAdmin() {
     if (selectedBulkIds.length === 0) {
       alert("Select at least one chat first.");
       return;
     }
 
-    const ok = window.confirm("Are you sure you want to delete the selected chats?");
+    const ok = window.confirm(
+      "Are you sure you want to remove the selected chats from the admin board only?"
+    );
     if (!ok) return;
 
-    const { error: msgError } = await supabase
-      .from("order_messages")
-      .delete()
-      .in("order_id", selectedBulkIds);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
-    if (msgError) {
-      alert(msgError.message);
+    if (authError || !user) {
+      alert("Could not find the signed-in admin.");
       return;
     }
 
-    const { error: itemError } = await supabase
-      .from("order_items")
-      .delete()
-      .in("order_id", selectedBulkIds);
-
-    if (itemError) {
-      alert(itemError.message);
-      return;
-    }
-
-    const { error: orderError } = await supabase
+    const { error } = await supabase
       .from("orders")
-      .delete()
+      .update({
+        admin_deleted_at: new Date().toISOString(),
+        admin_deleted_by: user.id,
+      })
       .in("id", selectedBulkIds);
 
-    if (orderError) {
-      alert(orderError.message);
+    if (error) {
+      alert(error.message);
       return;
     }
 
     if (selectedChatId && selectedBulkIds.includes(selectedChatId)) {
-      setSelectedChatId(null);
-      setSelectedOrder(null);
-      setSelectedItems([]);
-      setSelectedMessages([]);
-      setReplyBody("");
+      closeChat();
     }
 
     cancelSelecting();
@@ -456,6 +453,14 @@ export function Admin() {
     setReplyBody("");
     await loadSelectedOrder(selectedChatId);
     await loadThreads();
+  }
+
+  function closeChat() {
+    setSelectedChatId(null);
+    setSelectedOrder(null);
+    setSelectedItems([]);
+    setSelectedMessages([]);
+    setReplyBody("");
   }
 
   function renderAddress(addressId: string | null | undefined) {
@@ -540,14 +545,7 @@ export function Admin() {
           </Card>
 
           <Card className="p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold">Products</div>
-                <p className="mt-1 text-sm text-slate-600">
-                  {items.length} item{items.length === 1 ? "" : "s"} in catalog
-                </p>
-              </div>
-            </div>
+            <div className="text-sm font-semibold">Products</div>
 
             <div className="mt-4 space-y-3">
               {items.length === 0 ? (
@@ -587,7 +585,7 @@ export function Admin() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-semibold">Customer Chats</h2>
-                  <p className="mt-1 text-sm text-slate-400">
+                  <p className="mt-1 text-sm text-slate-300">
                     All pending requests and all chats.
                   </p>
                 </div>
@@ -596,7 +594,7 @@ export function Admin() {
                   <button
                     type="button"
                     onClick={startSelecting}
-                    className="rounded-xl border border-slate-600 px-3 py-2 text-xs text-slate-100 hover:bg-white/10"
+                    className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm hover:bg-slate-100"
                   >
                     Select
                   </button>
@@ -605,21 +603,21 @@ export function Admin() {
                     <button
                       type="button"
                       onClick={cancelSelecting}
-                      className="rounded-xl border border-slate-600 px-3 py-2 text-xs text-slate-100 hover:bg-white/10"
+                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm hover:bg-slate-100"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
                       onClick={markSelectedAsShipped}
-                      className="rounded-xl border border-emerald-400 bg-emerald-500/15 px-3 py-2 text-xs text-emerald-100 hover:bg-emerald-500/25"
+                      className="rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-900 shadow-sm hover:bg-emerald-200"
                     >
                       Mark shipped
                     </button>
                     <button
                       type="button"
-                      onClick={deleteSelectedChats}
-                      className="rounded-xl border border-red-400 bg-red-500/15 px-3 py-2 text-xs text-red-100 hover:bg-red-500/25"
+                      onClick={hideSelectedChatsForAdmin}
+                      className="rounded-xl border border-red-300 bg-red-100 px-3 py-2 text-xs font-semibold text-red-900 shadow-sm hover:bg-red-200"
                     >
                       Delete
                     </button>
@@ -648,7 +646,7 @@ export function Admin() {
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleBulkSelection(thread.id)}
-                          className="mt-1 h-4 w-4 rounded accent-slate-200"
+                          className="mt-1 h-4 w-4 rounded accent-slate-700"
                         />
                       ) : null}
 
@@ -666,7 +664,7 @@ export function Admin() {
                           </div>
                         </div>
 
-                        <div className="mt-1 truncate text-sm text-slate-400">
+                        <div className="mt-1 truncate text-sm text-slate-300">
                           {thread.customer_note || `Order total ${money(thread.total_cents)}`}
                         </div>
 
@@ -720,13 +718,22 @@ export function Admin() {
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={markCurrentAsShipped}
-                      className="rounded-2xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 hover:bg-emerald-100"
-                    >
-                      Mark shipped
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={markCurrentAsShipped}
+                        className="rounded-2xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"
+                      >
+                        Mark shipped
+                      </button>
+                      <button
+                        type="button"
+                        onClick={closeChat}
+                        className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        Close
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-4 grid gap-4 lg:grid-cols-2">
