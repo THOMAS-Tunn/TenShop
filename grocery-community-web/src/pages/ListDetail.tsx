@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import type { SessionUser } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { Card } from "../components/Card";
+import { useNavigate } from "react-router-dom";
 
 type Product = {
   id: string;
@@ -11,6 +12,25 @@ type Product = {
   category: string | null;
   image_url: string | null;
 };
+
+type Address = {
+  id: string;
+  label: string | null;
+  recipient_name: string | null;
+  street_1: string;
+  street_2: string | null;
+  city: string;
+  state: string | null;
+  postal_code: string | null;
+  country: string;
+  is_default: boolean;
+};
+
+const navigate = useNavigate();
+const [addresses, setAddresses] = useState<Address[]>([]);
+const [selectedAddressId, setSelectedAddressId] = useState<string>("");
+const [customerNote, setCustomerNote] = useState("");
+const [submittingOrder, setSubmittingOrder] = useState(false);
 
 type ListItem = {
   id: string;
@@ -53,8 +73,33 @@ export function ListDetail({ user }: { user: SessionUser }) {
     setLoading(false);
   }
 
+async function loadAddresses() {
+  const { data, error } = await supabase
+    .from("user_addresses")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  const next = (data ?? []) as Address[];
+  setAddresses(next);
+
+  const defaultAddress = next.find((a) => a.is_default);
+  if (defaultAddress) {
+    setSelectedAddressId(defaultAddress.id);
+  } else if (next[0]) {
+    setSelectedAddressId(next[0].id);
+  }
+}
+  
   useEffect(() => {
     void loadItems();
+    void loadAddresses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listId]);
 
@@ -139,12 +184,101 @@ export function ListDetail({ user }: { user: SessionUser }) {
     await loadItems();
   }
 
+  async function submitOrder() {
+  if (!listId) return;
+
+  if (items.length === 0) {
+    alert("Your list is empty.");
+    return;
+  }
+
+  if (!selectedAddressId) {
+    alert("Please add/select a delivery address first.");
+    return;
+  }
+
+  setSubmittingOrder(true);
+
+  const { data: order, error: orderError } = await supabase
+    .from("orders")
+    .insert({
+      user_id: user.id,
+      list_id: listId,
+      address_id: selectedAddressId,
+      subtotal_cents: subtotalCents,
+      tax_cents: taxCents,
+      total_cents: totalCents,
+      customer_note: customerNote || null,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+
+  if (orderError || !order) {
+    setSubmittingOrder(false);
+    alert(orderError?.message ?? "Could not create order.");
+    return;
+  }
+
+  const orderItemsPayload = items.map((it) => ({
+    order_id: order.id,
+    product_id: it.product_id,
+    name: it.name,
+    price_cents: it.price_cents ?? 0,
+    qty: it.qty,
+  }));
+
+  const { error: itemsError } = await supabase.from("order_items").insert(orderItemsPayload);
+  if (itemsError) {
+    setSubmittingOrder(false);
+    alert(itemsError.message);
+    return;
+  }
+
+  const messagesPayload = [
+    {
+      order_id: order.id,
+      sender_user_id: user.id,
+      message_type: "system",
+      body: `Order created with ${items.length} item(s).`,
+    },
+    {
+      order_id: order.id,
+      sender_user_id: user.id,
+      message_type: "address",
+      address_id: selectedAddressId,
+      body: null,
+    },
+  ];
+
+  if (customerNote.trim()) {
+    messagesPayload.push({
+      order_id: order.id,
+      sender_user_id: user.id,
+      message_type: "text",
+      body: customerNote.trim(),
+    } as any);
+  }
+
+  const { error: messagesError } = await supabase.from("order_messages").insert(messagesPayload);
+  setSubmittingOrder(false);
+
+  if (messagesError) {
+    alert(messagesError.message);
+    return;
+  }
+
+  navigate(`/orders/${order.id}`);
+}
+
   const subtotalCents = useMemo(() => {
     return items.reduce((sum, it) => sum + (it.price_cents ?? 0) * (it.qty ?? 0), 0);
   }, [items]);
 
   const taxCents = Math.round(subtotalCents * 0.07);
   const totalCents = subtotalCents + taxCents;
+
+  
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
@@ -224,32 +358,64 @@ export function ListDetail({ user }: { user: SessionUser }) {
           )}
         </Card>
 
-        <Card className="p-4">
-          <div className="text-sm font-semibold">Order total</div>
-          <div className="mt-3 space-y-2 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-600">Subtotal</span>
-              <span className="font-semibold">{money(subtotalCents)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-600">Tax (7%)</span>
-              <span className="font-semibold">{money(taxCents)}</span>
-            </div>
-            <div className="h-px bg-slate-200" />
-            <div className="flex items-center justify-between">
-              <span className="text-slate-900">Total</span>
-              <span className="text-lg font-semibold">{money(totalCents)}</span>
-            </div>
-          </div>
+<Card className="p-4">
+  <div className="text-sm font-semibold">Order total</div>
 
-          <button
-            disabled={items.length === 0}
-            className="mt-4 w-full rounded-2xl bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-60"
-            onClick={() => alert("Next step: connect a real checkout/payment flow.")}
-          >
-            Proceed to checkout
-          </button>
-        </Card>
+  <div className="mt-3 space-y-2 text-sm">
+    <div className="flex items-center justify-between">
+      <span className="text-slate-600">Subtotal</span>
+      <span className="font-semibold">{money(subtotalCents)}</span>
+    </div>
+    <div className="flex items-center justify-between">
+      <span className="text-slate-600">Tax (7%)</span>
+      <span className="font-semibold">{money(taxCents)}</span>
+    </div>
+    <div className="h-px bg-slate-200" />
+    <div className="flex items-center justify-between">
+      <span className="text-slate-900">Total</span>
+      <span className="text-lg font-semibold">{money(totalCents)}</span>
+    </div>
+  </div>
+
+  <div className="mt-4">
+    <label className="mb-1 block text-sm font-medium text-slate-700">
+      Delivery address
+    </label>
+    <select
+      value={selectedAddressId}
+      onChange={(e) => setSelectedAddressId(e.target.value)}
+      className="w-full rounded-2xl border px-3 py-2 text-sm"
+    >
+      <option value="">Select address…</option>
+      {addresses.map((a) => (
+        <option key={a.id} value={a.id}>
+          {(a.label ?? "Address")} — {a.street_1}, {a.city}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  <div className="mt-4">
+    <label className="mb-1 block text-sm font-medium text-slate-700">
+      Note to admin
+    </label>
+    <textarea
+      value={customerNote}
+      onChange={(e) => setCustomerNote(e.target.value)}
+      placeholder="Optional note about delivery, substitutions, timing..."
+      className="w-full rounded-2xl border px-3 py-2 text-sm"
+      rows={4}
+    />
+  </div>
+
+  <button
+    disabled={items.length === 0 || submittingOrder}
+    className="mt-4 w-full rounded-2xl bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-60"
+    onClick={submitOrder}
+  >
+    {submittingOrder ? "Sending order..." : "Send order request"}
+  </button>
+</Card>
       </div>
     </main>
   );
