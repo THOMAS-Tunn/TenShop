@@ -10,6 +10,7 @@ import { Shop } from "./pages/Shop";
 import { Community } from "./pages/Community";
 import { ListDetail } from "./pages/ListDetail";
 import { Profile } from "./pages/Profile";
+import { OrderDetail } from "./pages/OrderDetail";
 
 function RequireAuth({
   user,
@@ -109,6 +110,14 @@ useEffect(() => {
             </RequireAuth>
           }
         />
+        <Route
+  path="/orders/:id"
+  element={
+    <RequireAuth user={user}>
+      {(u) => <OrderDetail user={u} />}
+    </RequireAuth>
+  }
+/>
         <Route
           path="/profile"
           element={
