@@ -30,7 +30,20 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    document.title = "Tien Shop";
+    document.title = "Ten Shop";
+
+    const iconUrl = "https://ik.imagekit.io/0b1iirbdi/logo.png";
+
+    let link = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;
+
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+
+    link.type = "image/png";
+    link.href = iconUrl;
   }, []);
 
   useEffect(() => {
