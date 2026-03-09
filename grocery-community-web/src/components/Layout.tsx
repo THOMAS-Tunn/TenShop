@@ -24,13 +24,13 @@ export function Layout({ user, loading }: { user: SessionUser | null; loading: b
           <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm ring-4 ring-red-50">
             <img
               src={siteLogo}
-              alt="Tien Shop logo"
+              alt="TenShop logo"
               className="h-full w-full rounded-full object-cover"
             />
           </div>
 
           <div className="leading-tight">
-            <div className="text-base font-semibold tracking-tight text-slate-900">Tien Shop</div>
+            <div className="text-base font-semibold tracking-tight text-slate-900">TenShop</div>
             <div className="text-xs text-slate-500">Delicious • Flexible • Easy</div>
           </div>
         </Link>
