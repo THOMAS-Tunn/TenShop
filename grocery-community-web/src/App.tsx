@@ -30,7 +30,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    document.title = "Ten Shop";
+    document.title = "TenShop";
 
     const iconUrl = "https://ik.imagekit.io/0b1iirbdi/logo-modified.png?updatedAt=1773072541949";
 
