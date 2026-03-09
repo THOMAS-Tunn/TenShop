@@ -35,6 +35,8 @@ type ListItem = {
   qty: number;
 };
 
+const SHIPPING_FEE_CENTS = 499;
+
 export function ListDetail({ user }: { user: SessionUser }) {
   const { id: listId } = useParams();
   const navigate = useNavigate();
@@ -243,7 +245,8 @@ export function ListDetail({ user }: { user: SessionUser }) {
   }, [items]);
 
   const taxCents = Math.round(subtotalCents * 0.09);
-  const totalCents = subtotalCents + taxCents;
+  const shippingCents = items.length > 0 ? SHIPPING_FEE_CENTS : 0;
+  const totalCents = subtotalCents + taxCents + shippingCents;
 
   async function submitOrder() {
     if (!listId) return;
@@ -463,6 +466,10 @@ export function ListDetail({ user }: { user: SessionUser }) {
             <div className="flex items-center justify-between">
               <span className="text-slate-600">Tax 9% <a href="https://www.google.com/search?q=columbus+georgia+local+tax+rate&sca_esv=6ed2f101db008005&rlz=1C1RXQR_enUS1110US1110&biw=1920&bih=929&ei=J3mtaYGuA8yap84PmfqYsAI&ved=0ahUKEwjB3ZDvs5CTAxVMzckDHRk9BiYQ4dUDCBQ&uact=5&oq=columbus+georgia+local+tax+rate&gs_lp=Egxnd3Mtd2l6LXNlcnAiH2NvbHVtYnVzIGdlb3JnaWEgbG9jYWwgdGF4IHJhdGUyBRAAGO8FMggQABiABBiiBDIIEAAYgAQYogQyCBAAGIAEGKIEMgUQABjvBUjWMVDqE1jhLnAFeAGQAQCYAXGgAaAGqgEDNy4yuAEDyAEA-AEBmAINoAL6BcICChAAGLADGNYEGEfCAgUQABiABMICBhAAGAcYHsICBhAAGAgYHsICCxAAGIAEGIYDGIoFwgIKECEYoAEYwwQYCpgDAIgGAZAGCJIHBDExLjKgB5kfsgcDNi4yuAftBcIHBTMuOC4yyAcWgAgA&sclient=gws-wiz-serp&safe=active&ssui=on" target="_blank"><u><i>(?)</i></u></a></span>
               <span className="font-semibold">{money(taxCents)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-600">Shipping</span>
+              <span className="font-semibold">{money(shippingCents)}</span>
             </div>
             <div className="h-px bg-slate-200" />
             <div className="flex items-center justify-between">

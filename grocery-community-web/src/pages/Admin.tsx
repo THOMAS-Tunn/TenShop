@@ -551,6 +551,10 @@ export function Admin() {
     );
   }
 
+  const selectedOrderShippingCents = selectedOrder
+    ? Math.max(0, selectedOrder.total_cents - selectedOrder.subtotal_cents - selectedOrder.tax_cents)
+    : 0;
+
   return (
     <main className="mx-auto max-w-7xl px-4 py-10">
       <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
@@ -610,7 +614,7 @@ export function Admin() {
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Properties
+                  Tags
                 </label>
                 <input
                   className="w-full rounded-2xl border border-slate-200 px-4 py-2 outline-none transition focus:border-slate-400"
@@ -800,7 +804,7 @@ export function Admin() {
             <div className="border-b border-slate-800 px-5 py-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-semibold">Customer Chats</h2>
+                  <h2 className="text-lg font-semibold ">Customer Chats</h2>
                   <p className="mt-1 text-sm text-slate-300">
                     All pending requests and all chats.
                   </p>
@@ -979,6 +983,10 @@ export function Admin() {
                         <div className="mt-1 flex items-center justify-between">
                           <span>Tax</span>
                           <span>{money(selectedOrder.tax_cents)}</span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between">
+                          <span>Shipping</span>
+                          <span>{money(selectedOrderShippingCents)}</span>
                         </div>
                         <div className="mt-1 flex items-center justify-between font-semibold">
                           <span>Total</span>

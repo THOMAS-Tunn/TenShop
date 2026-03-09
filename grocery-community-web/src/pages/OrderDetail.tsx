@@ -66,6 +66,9 @@ export function OrderDetail({ user }: { user: SessionUser }) {
       new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(cents / 100),
     []
   );
+  const shippingCents = order
+    ? Math.max(0, order.total_cents - order.subtotal_cents - order.tax_cents)
+    : 0;
 
   async function loadAll() {
     if (!id) return;
@@ -264,6 +267,10 @@ export function OrderDetail({ user }: { user: SessionUser }) {
                     <span>Tax</span>
                     <span>{money(order.tax_cents)}</span>
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span>Shipping</span>
+                    <span>{money(shippingCents)}</span>
+                  </div>
                   <div className="flex items-center justify-between font-semibold">
                     <span>Total</span>
                     <span>{money(order.total_cents)}</span>
@@ -304,9 +311,19 @@ export function OrderDetail({ user }: { user: SessionUser }) {
           <div className="mt-4 space-y-3">
             {messages.map((m) => (
               <div key={m.id} className="rounded-2xl border px-4 py-3">
-                <div className="text-xs text-slate-500">
-                  {m.sender_user_id === user.id ? "You" : "Admin"} •{" "}
-                  {new Date(m.created_at).toLocaleString()}
+                <div className="flex items-center gap-2 text-xs">
+                  <span
+                    className={`rounded-full px-2 py-0.5 font-semibold ${
+                      m.sender_user_id === user.id
+                        ? "bg-slate-200 text-slate-800"
+                        : "bg-blue-100 text-blue-900"
+                    }`}
+                  >
+                    {m.sender_user_id === user.id ? "You" : "Admin"}
+                  </span>
+                  <span className="text-slate-600">
+                    {new Date(m.created_at).toLocaleString()}
+                  </span>
                 </div>
 
                 <div className="mt-2">
