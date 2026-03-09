@@ -32,7 +32,7 @@ export default function App() {
   useEffect(() => {
     document.title = "Ten Shop";
 
-    const iconUrl = "https://ik.imagekit.io/0b1iirbdi/logo-modified.png";
+    const iconUrl = "https://ik.imagekit.io/0b1iirbdi/logo-modified.png?updatedAt=1773072541949";
 
     let link = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;
 
