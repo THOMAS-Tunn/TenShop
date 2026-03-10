@@ -101,6 +101,8 @@ export function Admin() {
   const [replyBody, setReplyBody] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  const [isAddressOpen, setIsAddressOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"chat" | "items">("chat");
 
   const [itemSearch, setItemSearch] = useState("");
@@ -258,8 +260,52 @@ export function Admin() {
     }
   }
 
-  async function loadSelectedOrder(orderId: string) {
-    setLoadingChat(true);
+  async function syncAddressMap(order: Pick<OrderRow, "address_id"> | null, messages: OrderMessage[]) {
+    const addressIds = new Set<string>();
+    if (order?.address_id) addressIds.add(order.address_id);
+    for (const message of messages) {
+      if (message.address_id) addressIds.add(message.address_id);
+    }
+
+    if (addressIds.size > 0) {
+      const { data: addresses } = await supabase
+        .from("user_addresses")
+        .select("*")
+        .in("id", Array.from(addressIds));
+
+      const nextAddressMap: Record<string, Address> = {};
+      for (const address of addresses ?? []) {
+        nextAddressMap[address.id] = address as Address;
+      }
+      setAddressMap(nextAddressMap);
+      return;
+    }
+
+    setAddressMap({});
+  }
+
+  async function loadSelectedMessages(orderId: string, order: Pick<OrderRow, "address_id"> | null) {
+    const { data: messageData, error: messageError } = await supabase
+      .from("order_messages")
+      .select("*")
+      .eq("order_id", orderId)
+      .order("created_at");
+
+    if (messageError) {
+      alert(messageError.message);
+      return;
+    }
+
+    const messages = (messageData ?? []) as OrderMessage[];
+    setSelectedMessages(messages);
+    await syncAddressMap(order, messages);
+  }
+
+  async function loadSelectedOrder(orderId: string, options?: { showLoader?: boolean }) {
+    const showLoader = options?.showLoader ?? false;
+    if (showLoader) {
+      setLoadingChat(true);
+    }
 
     const { data: orderData, error: orderError } = await supabase
       .from("orders")
@@ -299,27 +345,7 @@ export function Admin() {
     setSelectedOrder(order);
     setSelectedItems((itemData ?? []) as OrderItem[]);
     setSelectedMessages(messages);
-
-    const addressIds = new Set<string>();
-    if (order.address_id) addressIds.add(order.address_id);
-    for (const message of messages) {
-      if (message.address_id) addressIds.add(message.address_id);
-    }
-
-    if (addressIds.size > 0) {
-      const { data: addresses } = await supabase
-        .from("user_addresses")
-        .select("*")
-        .in("id", Array.from(addressIds));
-
-      const nextAddressMap: Record<string, Address> = {};
-      for (const address of addresses ?? []) {
-        nextAddressMap[address.id] = address as Address;
-      }
-      setAddressMap(nextAddressMap);
-    } else {
-      setAddressMap({});
-    }
+    await syncAddressMap(order, messages);
 
     setLoadingChat(false);
   }
@@ -331,7 +357,7 @@ export function Admin() {
 
   useEffect(() => {
     if (!selectedChatId) return;
-    void loadSelectedOrder(selectedChatId);
+    void loadSelectedOrder(selectedChatId, { showLoader: true });
   }, [selectedChatId]);
 
   useEffect(() => {
@@ -372,9 +398,16 @@ export function Admin() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "orders" },
-        () => {
+        (payload) => {
           void loadThreads();
-          if (selectedChatId) {
+          const changedOrderId =
+            typeof payload.new === "object" && payload.new && "id" in payload.new
+              ? String(payload.new.id)
+              : typeof payload.old === "object" && payload.old && "id" in payload.old
+                ? String(payload.old.id)
+                : null;
+
+          if (selectedChatId && changedOrderId === selectedChatId) {
             void loadSelectedOrder(selectedChatId);
           }
         }
@@ -382,10 +415,17 @@ export function Admin() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "order_messages" },
-        () => {
+        (payload) => {
           void loadThreads();
-          if (selectedChatId) {
-            void loadSelectedOrder(selectedChatId);
+          const changedOrderId =
+            typeof payload.new === "object" && payload.new && "order_id" in payload.new
+              ? String(payload.new.order_id)
+              : typeof payload.old === "object" && payload.old && "order_id" in payload.old
+                ? String(payload.old.order_id)
+                : null;
+
+          if (selectedChatId && changedOrderId === selectedChatId) {
+            void loadSelectedMessages(selectedChatId, selectedOrder);
           }
         }
       )
@@ -394,7 +434,7 @@ export function Admin() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [selectedChatId]);
+  }, [selectedChatId, selectedOrder]);
 
   async function addItem(e: React.FormEvent) {
     e.preventDefault();
@@ -578,6 +618,8 @@ export function Admin() {
   function openChat(orderId: string) {
     shouldStickToBottomRef.current = true;
     setChatFilterOpen(false);
+    setIsSummaryOpen(false);
+    setIsAddressOpen(false);
     setReplyBody("");
     setSelectedOrder(null);
     setSelectedItems([]);
@@ -656,6 +698,8 @@ export function Admin() {
 
   function closeChat() {
     shouldStickToBottomRef.current = true;
+    setIsSummaryOpen(false);
+    setIsAddressOpen(false);
     setSelectedChatId(null);
     setSelectedOrder(null);
     setSelectedItems([]);
@@ -986,7 +1030,7 @@ export function Admin() {
               selectedChatId ? "grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)]" : "grid-cols-1"
             }`}
           >
-            <Card className="flex min-h-[760px] flex-col overflow-visible border border-slate-800 bg-[#0b0b0c] p-0 text-white shadow-2xl">
+            <Card className="flex h-[calc(100vh-12rem)] min-h-[620px] max-h-[860px] flex-col overflow-visible border border-slate-800 bg-[#0b0b0c] p-0 text-white shadow-2xl">
               <div className="border-b border-slate-800 px-5 py-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -1150,7 +1194,7 @@ export function Admin() {
                 </div>
               </div>
 
-              <div className="flex-1 divide-y divide-slate-800 overflow-y-auto">
+              <div className="min-h-0 flex-1 divide-y divide-slate-800 overflow-y-auto">
                 {threads.length === 0 ? (
                   <div className="flex h-full min-h-[560px] items-center justify-center px-6 text-sm text-slate-400">
                     No order chats yet.
@@ -1217,7 +1261,7 @@ export function Admin() {
             </Card>
 
             {selectedChatId ? (
-              <Card className="flex min-h-[760px] flex-col overflow-hidden border border-slate-200 bg-white p-0 shadow-2xl">
+              <Card className="flex h-[calc(100vh-12rem)] min-h-[620px] max-h-[860px] flex-col overflow-hidden border border-slate-200 bg-white p-0 shadow-2xl">
                 {loadingChat ? (
                   <div className="flex h-full items-center justify-center text-sm text-slate-600">
                     Loading chat...
@@ -1270,53 +1314,95 @@ export function Admin() {
                       </div>
 
                       <div className="mt-4 grid gap-3 xl:grid-cols-2">
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                          <div className="text-sm font-semibold text-slate-900">Order summary</div>
-                          <div className="mt-3 space-y-2 text-sm">
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-600">Subtotal</span>
-                              <span>{money(selectedOrder.subtotal_cents)}</span>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50">
+                          <button
+                            type="button"
+                            aria-expanded={isSummaryOpen}
+                            onClick={() => setIsSummaryOpen((prev) => !prev)}
+                            className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left"
+                          >
+                            <div>
+                              <div className="text-sm font-semibold text-slate-900">
+                                Order summary
+                              </div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                {isSummaryOpen ? "Hide details" : "Show details"}
+                              </div>
                             </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-600">Tax</span>
-                              <span>{money(selectedOrder.tax_cents)}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-600">Shipping</span>
-                              <span>{money(selectedOrderShippingCents)}</span>
-                            </div>
-                            <div className="flex items-center justify-between font-semibold text-slate-900">
-                              <span>Total</span>
-                              <span>{money(selectedOrder.total_cents)}</span>
-                            </div>
-                          </div>
+                            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                              {isSummaryOpen ? "Close" : "Open"}
+                            </span>
+                          </button>
 
-                          {selectedItems.length > 0 ? (
-                            <div className="mt-4 border-t border-slate-200 pt-4">
-                              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                Items
+                          {isSummaryOpen ? (
+                            <div className="max-h-64 overflow-y-auto border-t border-slate-200 px-4 py-4">
+                              <div className="space-y-2 text-sm">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-600">Subtotal</span>
+                                  <span>{money(selectedOrder.subtotal_cents)}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-600">Tax</span>
+                                  <span>{money(selectedOrder.tax_cents)}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-600">Shipping</span>
+                                  <span>{money(selectedOrderShippingCents)}</span>
+                                </div>
+                                <div className="flex items-center justify-between font-semibold text-slate-900">
+                                  <span>Total</span>
+                                  <span>{money(selectedOrder.total_cents)}</span>
+                                </div>
                               </div>
-                              <div className="flex flex-wrap gap-2">
-                                {selectedItems.map((item) => (
-                                  <span
-                                    key={item.id}
-                                    className="rounded-full bg-white px-3 py-1 text-xs text-slate-700 ring-1 ring-slate-200"
-                                  >
-                                    {item.name} x {item.qty}
-                                  </span>
-                                ))}
-                              </div>
+
+                              {selectedItems.length > 0 ? (
+                                <div className="mt-4 border-t border-slate-200 pt-4">
+                                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    Items
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {selectedItems.map((item) => (
+                                      <span
+                                        key={item.id}
+                                        className="rounded-full bg-white px-3 py-1 text-xs text-slate-700 ring-1 ring-slate-200"
+                                      >
+                                        {item.name} x {item.qty}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null}
                             </div>
                           ) : null}
                         </div>
 
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                          <div className="mb-3 text-sm font-semibold text-slate-900">
-                            Delivery address
-                          </div>
-                          {renderAddress(selectedOrder.address_id) ?? (
-                            <div className="text-sm text-slate-600">No address shared yet.</div>
-                          )}
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50">
+                          <button
+                            type="button"
+                            aria-expanded={isAddressOpen}
+                            onClick={() => setIsAddressOpen((prev) => !prev)}
+                            className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left"
+                          >
+                            <div>
+                              <div className="text-sm font-semibold text-slate-900">
+                                Delivery address
+                              </div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                {isAddressOpen ? "Hide address" : "Show address"}
+                              </div>
+                            </div>
+                            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                              {isAddressOpen ? "Close" : "Open"}
+                            </span>
+                          </button>
+
+                          {isAddressOpen ? (
+                            <div className="max-h-64 overflow-y-auto border-t border-slate-200 px-4 py-4">
+                              {renderAddress(selectedOrder.address_id) ?? (
+                                <div className="text-sm text-slate-600">No address shared yet.</div>
+                              )}
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -1324,7 +1410,7 @@ export function Admin() {
                     <div
                       ref={messagesContainerRef}
                       onScroll={handleConversationScroll}
-                      className="flex-1 space-y-3 overflow-y-auto bg-slate-50 px-4 py-4"
+                      className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50 px-4 py-4"
                     >
                       {selectedMessages.length === 0 ? (
                         <div className="flex h-full min-h-[240px] items-center justify-center text-sm text-slate-600">
