@@ -599,7 +599,11 @@ export function Admin() {
       return;
     }
 
-    const ok = window.confirm(adminCopy.confirmMarkSelectedShipped);
+    const ok = await notice.confirm(adminCopy.confirmMarkSelectedShipped, {
+      cancelLabel: common.cancel,
+      confirmLabel: adminCopy.markShipped,
+      variant: "success",
+    });
     if (!ok) return;
 
     const { error } = await supabase
@@ -626,7 +630,11 @@ export function Admin() {
       return;
     }
 
-    const ok = window.confirm(adminCopy.confirmHideSelectedChats);
+    const ok = await notice.confirm(adminCopy.confirmHideSelectedChats, {
+      cancelLabel: common.cancel,
+      confirmLabel: common.hide,
+      variant: "error",
+    });
     if (!ok) return;
 
     const {
@@ -663,7 +671,11 @@ export function Admin() {
   async function markCurrentAsShipped() {
     if (!selectedChatId) return;
 
-    const ok = window.confirm(adminCopy.confirmMarkCurrentShipped);
+    const ok = await notice.confirm(adminCopy.confirmMarkCurrentShipped, {
+      cancelLabel: common.cancel,
+      confirmLabel: adminCopy.markShipped,
+      variant: "success",
+    });
     if (!ok) return;
 
     const { error } = await supabase

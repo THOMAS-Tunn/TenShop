@@ -161,7 +161,11 @@ export function Profile({ user }: { user: SessionUser }) {
       return;
     }
 
-    const ok = window.confirm(profile.deleteAddressConfirm);
+    const ok = await notice.confirm(profile.deleteAddressConfirm, {
+      cancelLabel: common.cancel,
+      confirmLabel: common.delete,
+      variant: "error",
+    });
     if (!ok) return;
 
     const { error } = await supabase.from("user_addresses").delete().eq("id", addressId);

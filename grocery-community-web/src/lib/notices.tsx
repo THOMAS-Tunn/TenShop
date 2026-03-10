@@ -13,18 +13,40 @@ import { useAppSettings } from "./app-settings";
 
 type NoticeVariant = "info" | "success" | "warning" | "error";
 
-type Notice = {
-  id: string;
-  message: string;
-  variant: NoticeVariant;
-};
-
 type NoticeOptions = {
+  dismissLabel?: string;
   durationMs?: number;
   variant?: NoticeVariant;
 };
 
+type ConfirmOptions = {
+  cancelLabel?: string;
+  confirmLabel?: string;
+  variant?: NoticeVariant;
+};
+
+type NoticeDialog = {
+  id: string;
+  kind: "notice";
+  message: string;
+  variant: NoticeVariant;
+  durationMs?: number;
+  dismissLabel?: string;
+};
+
+type ConfirmDialog = {
+  id: string;
+  kind: "confirm";
+  message: string;
+  variant: NoticeVariant;
+  cancelLabel: string;
+  confirmLabel: string;
+};
+
+type Dialog = NoticeDialog | ConfirmDialog;
+
 type NoticeContextValue = {
+  confirm: (message: string, options?: ConfirmOptions) => Promise<boolean>;
   dismissNotice: (id: string) => void;
   showError: (message: string, options?: Omit<NoticeOptions, "variant">) => string | null;
   showInfo: (message: string, options?: Omit<NoticeOptions, "variant">) => string | null;
@@ -35,12 +57,11 @@ type NoticeContextValue = {
 
 const NoticeContext = createContext<NoticeContextValue | null>(null);
 
-const MAX_VISIBLE_NOTICES = 1;
 const DEFAULT_DURATION_BY_VARIANT: Record<NoticeVariant, number> = {
-  info: 4500,
-  success: 4200,
-  warning: 5000,
-  error: 6000,
+  info: 3200,
+  success: 2600,
+  warning: 4500,
+  error: 5200,
 };
 
 const NOTICE_ICONS: Record<NoticeVariant, string> = {
@@ -50,103 +71,115 @@ const NOTICE_ICONS: Record<NoticeVariant, string> = {
   error: "fa-circle-exclamation",
 };
 
-function getNoticeToneClasses(theme: "light" | "dark", variant: NoticeVariant) {
+function getDialogToneClasses(theme: "light" | "dark", variant: NoticeVariant) {
   const isDarkTheme = theme === "dark";
 
   if (variant === "success") {
     return {
-      panel: isDarkTheme
-        ? "border-emerald-400/40 bg-slate-950/95 text-slate-50 shadow-black/30"
-        : "border-emerald-200 bg-white/95 text-slate-900 shadow-slate-900/10",
-      iconWrap: isDarkTheme ? "bg-emerald-500/15" : "bg-emerald-50",
+      accent: isDarkTheme ? "border-emerald-400/35" : "border-emerald-200/80",
+      iconWrap: isDarkTheme ? "bg-emerald-400/12" : "bg-emerald-50",
       icon: isDarkTheme ? "text-emerald-200" : "text-emerald-700",
-      rail: isDarkTheme ? "bg-emerald-400/70" : "bg-emerald-500/70",
     };
   }
 
   if (variant === "warning") {
     return {
-      panel: isDarkTheme
-        ? "border-amber-400/40 bg-slate-950/95 text-slate-50 shadow-black/30"
-        : "border-amber-200 bg-white/95 text-slate-900 shadow-slate-900/10",
-      iconWrap: isDarkTheme ? "bg-amber-500/15" : "bg-amber-50",
+      accent: isDarkTheme ? "border-amber-300/35" : "border-amber-200/80",
+      iconWrap: isDarkTheme ? "bg-amber-300/12" : "bg-amber-50",
       icon: isDarkTheme ? "text-amber-200" : "text-amber-700",
-      rail: isDarkTheme ? "bg-amber-400/70" : "bg-amber-500/70",
     };
   }
 
   if (variant === "error") {
     return {
-      panel: isDarkTheme
-        ? "border-red-400/40 bg-slate-950/95 text-slate-50 shadow-black/30"
-        : "border-red-200 bg-white/95 text-slate-900 shadow-slate-900/10",
-      iconWrap: isDarkTheme ? "bg-red-500/15" : "bg-red-50",
+      accent: isDarkTheme ? "border-red-400/35" : "border-red-200/80",
+      iconWrap: isDarkTheme ? "bg-red-400/12" : "bg-red-50",
       icon: isDarkTheme ? "text-red-200" : "text-red-700",
-      rail: isDarkTheme ? "bg-red-400/70" : "bg-red-500/70",
     };
   }
 
   return {
-    panel: isDarkTheme
-      ? "border-slate-600 bg-slate-950/95 text-slate-50 shadow-black/30"
-      : "border-slate-200 bg-white/95 text-slate-900 shadow-slate-900/10",
-    iconWrap: isDarkTheme ? "bg-slate-800" : "bg-slate-100",
+    accent: isDarkTheme ? "border-slate-700/80" : "border-slate-200/80",
+    iconWrap: isDarkTheme ? "bg-slate-800/90" : "bg-slate-100",
     icon: isDarkTheme ? "text-slate-200" : "text-slate-700",
-    rail: isDarkTheme ? "bg-slate-400/70" : "bg-slate-500/70",
   };
+}
+
+function getPrimaryActionClasses(theme: "light" | "dark", variant: NoticeVariant) {
+  if (variant === "error") {
+    return theme === "dark"
+      ? "bg-red-400 text-slate-950 hover:bg-red-300"
+      : "bg-red-600 text-white hover:bg-red-700";
+  }
+
+  if (variant === "success") {
+    return theme === "dark"
+      ? "bg-emerald-400 text-slate-950 hover:bg-emerald-300"
+      : "bg-emerald-600 text-white hover:bg-emerald-700";
+  }
+
+  return theme === "dark"
+    ? "bg-slate-100 text-slate-950 hover:bg-white"
+    : "bg-slate-900 text-white hover:opacity-92";
+}
+
+function getSecondaryActionClasses(theme: "light" | "dark") {
+  return theme === "dark"
+    ? "border-slate-700 bg-slate-900/70 text-slate-100 hover:bg-slate-800"
+    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100";
 }
 
 export function NoticeProvider({ children }: { children: ReactNode }) {
   const { copy, theme } = useAppSettings();
-  const [notices, setNotices] = useState<Notice[]>([]);
+  const [dialogs, setDialogs] = useState<Dialog[]>([]);
   const nextIdRef = useRef(0);
-  const timerMapRef = useRef<Record<string, number>>({});
-  const activeNotice = notices[0] ?? null;
-  const activeTone = activeNotice ? getNoticeToneClasses(theme, activeNotice.variant) : null;
+  const confirmResolverMapRef = useRef<Record<string, (value: boolean) => void>>({});
+  const actionButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  const clearNoticeTimer = useCallback((id: string) => {
-    const timer = timerMapRef.current[id];
-    if (typeof timer === "number") {
-      window.clearTimeout(timer);
-      delete timerMapRef.current[id];
+  const activeDialog = dialogs[0] ?? null;
+  const activeTone = activeDialog ? getDialogToneClasses(theme, activeDialog.variant) : null;
+
+  const settleConfirm = useCallback((id: string, value: boolean) => {
+    const resolver = confirmResolverMapRef.current[id];
+    if (resolver) {
+      resolver(value);
+      delete confirmResolverMapRef.current[id];
     }
   }, []);
 
   const dismissNotice = useCallback(
     (id: string) => {
-      clearNoticeTimer(id);
-      setNotices((prev) => prev.filter((notice) => notice.id !== id));
+      settleConfirm(id, false);
+      setDialogs((prev) => prev.filter((dialog) => dialog.id !== id));
     },
-    [clearNoticeTimer]
+    [settleConfirm]
   );
 
-  const showNotice = useCallback(
-    (message: string, options?: NoticeOptions) => {
-      const trimmed = message.trim();
-      if (!trimmed) return null;
-
-      const variant = options?.variant ?? "info";
-      const id = `notice-${++nextIdRef.current}`;
-      const notice: Notice = { id, message: trimmed, variant };
-
-      setNotices((prev) => {
-        const next = [notice, ...prev];
-        if (next.length <= MAX_VISIBLE_NOTICES) return next;
-
-        const dropped = next.pop();
-        if (dropped) clearNoticeTimer(dropped.id);
-        return next;
-      });
-
-      const durationMs = options?.durationMs ?? DEFAULT_DURATION_BY_VARIANT[variant];
-      timerMapRef.current[id] = window.setTimeout(() => {
-        dismissNotice(id);
-      }, durationMs);
-
-      return id;
+  const confirmNotice = useCallback(
+    (id: string) => {
+      settleConfirm(id, true);
+      setDialogs((prev) => prev.filter((dialog) => dialog.id !== id));
     },
-    [clearNoticeTimer, dismissNotice]
+    [settleConfirm]
   );
+
+  const showNotice = useCallback((message: string, options?: NoticeOptions) => {
+    const trimmed = message.trim();
+    if (!trimmed) return null;
+
+    const id = `notice-${++nextIdRef.current}`;
+    const nextDialog: NoticeDialog = {
+      id,
+      kind: "notice",
+      message: trimmed,
+      variant: options?.variant ?? "info",
+      durationMs: options?.durationMs,
+      dismissLabel: options?.dismissLabel,
+    };
+
+    setDialogs((prev) => [...prev, nextDialog]);
+    return id;
+  }, []);
 
   const showInfo = useCallback(
     (message: string, options?: Omit<NoticeOptions, "variant">) =>
@@ -172,30 +205,93 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
     [showNotice]
   );
 
-  useEffect(() => {
-    return () => {
-      for (const timer of Object.values(timerMapRef.current)) {
-        window.clearTimeout(timer);
-      }
-      timerMapRef.current = {};
-    };
-  }, []);
+  const confirm = useCallback(
+    (message: string, options?: ConfirmOptions) => {
+      const trimmed = message.trim();
+      if (!trimmed) return Promise.resolve(false);
+
+      const id = `confirm-${++nextIdRef.current}`;
+      const nextDialog: ConfirmDialog = {
+        id,
+        kind: "confirm",
+        message: trimmed,
+        variant: options?.variant ?? "warning",
+        confirmLabel: options?.confirmLabel ?? copy.common.done,
+        cancelLabel: options?.cancelLabel ?? copy.common.cancel,
+      };
+
+      setDialogs((prev) => [...prev, nextDialog]);
+
+      return new Promise<boolean>((resolve) => {
+        confirmResolverMapRef.current[id] = resolve;
+      });
+    },
+    [copy.common.cancel, copy.common.done]
+  );
 
   useEffect(() => {
-    if (!activeNotice) return;
+    if (!activeDialog) return;
+
+    const durationMs =
+      activeDialog.kind === "notice"
+        ? activeDialog.durationMs ?? DEFAULT_DURATION_BY_VARIANT[activeDialog.variant]
+        : null;
+
+    if (durationMs === null || durationMs <= 0) return;
+
+    const timer = window.setTimeout(() => {
+      dismissNotice(activeDialog.id);
+    }, durationMs);
+
+    return () => window.clearTimeout(timer);
+  }, [activeDialog, dismissNotice]);
+
+  useEffect(() => {
+    if (!activeDialog) return;
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        dismissNotice(activeNotice.id);
+        dismissNotice(activeDialog.id);
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeNotice, dismissNotice]);
+  }, [activeDialog, dismissNotice]);
+
+  useEffect(() => {
+    if (!activeDialog) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      actionButtonRef.current?.focus();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeDialog]);
+
+  useEffect(() => {
+    if (!activeDialog) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [activeDialog]);
+
+  useEffect(() => {
+    return () => {
+      for (const resolver of Object.values(confirmResolverMapRef.current)) {
+        resolver(false);
+      }
+      confirmResolverMapRef.current = {};
+    };
+  }, []);
 
   const value = useMemo<NoticeContextValue>(
     () => ({
+      confirm,
       dismissNotice,
       showError,
       showInfo,
@@ -203,67 +299,130 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
       showSuccess,
       showWarning,
     }),
-    [dismissNotice, showError, showInfo, showNotice, showSuccess, showWarning]
+    [confirm, dismissNotice, showError, showInfo, showNotice, showSuccess, showWarning]
   );
 
   return (
     <NoticeContext.Provider value={value}>
       {children}
 
-      {activeNotice ? (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6">
+      {activeDialog ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-6">
           <div
             aria-hidden="true"
-            onClick={() => dismissNotice(activeNotice.id)}
+            onClick={() => dismissNotice(activeDialog.id)}
             className={clsx(
               "absolute inset-0 transition-opacity duration-200",
-              theme === "dark" ? "bg-slate-950/70 backdrop-blur-sm" : "bg-slate-900/25 backdrop-blur-sm"
+              theme === "dark" ? "bg-slate-950/72 backdrop-blur-[3px]" : "bg-slate-900/28 backdrop-blur-[3px]"
             )}
           />
 
           <div
-            aria-live={activeNotice.variant === "error" ? "assertive" : "polite"}
-            role={activeNotice.variant === "error" ? "alert" : "status"}
+            aria-live={
+              activeDialog.kind === "confirm"
+                ? undefined
+                : activeDialog.variant === "error"
+                  ? "assertive"
+                  : "polite"
+            }
+            aria-modal="true"
+            role={
+              activeDialog.kind === "confirm"
+                ? "alertdialog"
+                : activeDialog.variant === "error"
+                  ? "alert"
+                  : "dialog"
+            }
             className={clsx(
-              "relative w-full max-w-lg overflow-hidden rounded-[32px] border shadow-2xl backdrop-blur-xl",
-              activeTone?.panel
+              "relative w-full max-w-md overflow-hidden rounded-[30px] border shadow-[0_32px_90px_-32px_rgba(15,23,42,0.45)]",
+              theme === "dark" ? "bg-slate-950/96 text-slate-50" : "bg-white/96 text-slate-900",
+              activeTone?.accent
             )}
+            onClick={(event) => event.stopPropagation()}
           >
-            <div className={clsx("h-1.5 w-full", activeTone?.rail)} />
-
-            <div className="flex items-start gap-4 p-5 sm:p-6">
-              <div
-                className={clsx(
-                  "mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
-                  activeTone?.iconWrap
-                )}
-              >
-                <i
+            <div className="p-5 sm:p-6">
+              <div className="flex items-start gap-4">
+                <div
                   className={clsx(
-                    "fa-solid text-lg",
-                    NOTICE_ICONS[activeNotice.variant],
-                    activeTone?.icon
+                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl",
+                    activeTone?.iconWrap
                   )}
-                />
+                >
+                  <i
+                    className={clsx(
+                      "fa-solid text-base",
+                      NOTICE_ICONS[activeDialog.variant],
+                      activeTone?.icon
+                    )}
+                    aria-hidden="true"
+                  />
+                </div>
+
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <p
+                    className={clsx(
+                      "text-[15px] leading-7 sm:text-base",
+                      theme === "dark" ? "text-slate-100" : "text-slate-800"
+                    )}
+                  >
+                    {activeDialog.message}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  aria-label={copy.common.close}
+                  onClick={() => dismissNotice(activeDialog.id)}
+                  className={clsx(
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition",
+                    theme === "dark"
+                      ? "text-slate-400 hover:bg-white/10 hover:text-slate-100"
+                      : "text-slate-500 hover:bg-slate-900/5 hover:text-slate-900"
+                  )}
+                >
+                  <i className="fa-solid fa-xmark" aria-hidden="true" />
+                </button>
               </div>
 
-              <p className="flex-1 pt-1 text-sm leading-7 sm:text-base">
-                {activeNotice.message}
-              </p>
-
-              <button
-                type="button"
-                aria-label={copy.common.close}
-                onClick={() => dismissNotice(activeNotice.id)}
-                className={clsx(
-                  "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition",
-                  theme === "dark"
-                    ? "text-slate-400 hover:bg-white/10 hover:text-slate-100"
-                    : "text-slate-500 hover:bg-slate-900/5 hover:text-slate-900"
+              <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                {activeDialog.kind === "confirm" ? (
+                  <>
+                    <button
+                      ref={actionButtonRef}
+                      type="button"
+                      onClick={() => dismissNotice(activeDialog.id)}
+                      className={clsx(
+                        "rounded-2xl border px-4 py-2.5 text-sm font-semibold transition",
+                        getSecondaryActionClasses(theme)
+                      )}
+                    >
+                      {activeDialog.cancelLabel}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => confirmNotice(activeDialog.id)}
+                      className={clsx(
+                        "rounded-2xl px-4 py-2.5 text-sm font-semibold transition",
+                        getPrimaryActionClasses(theme, activeDialog.variant)
+                      )}
+                    >
+                      {activeDialog.confirmLabel}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    ref={actionButtonRef}
+                    type="button"
+                    onClick={() => dismissNotice(activeDialog.id)}
+                    className={clsx(
+                      "rounded-2xl px-4 py-2.5 text-sm font-semibold transition",
+                      getPrimaryActionClasses(theme, activeDialog.variant)
+                    )}
+                  >
+                    {activeDialog.dismissLabel ?? copy.common.close}
+                  </button>
                 )}
-              >
-                <i className="fa-solid fa-xmark" aria-hidden="true" />
-              </button>
+              </div>
             </div>
           </div>
         </div>

@@ -179,7 +179,11 @@ export function OrderDetail({ user }: { user: SessionUser }) {
   async function deleteChat() {
     if (!id) return;
 
-    const ok = window.confirm(page.deleteConfirm);
+    const ok = await notice.confirm(page.deleteConfirm, {
+      cancelLabel: common.cancel,
+      confirmLabel: common.delete,
+      variant: "error",
+    });
     if (!ok) return;
 
     setDeletingChat(true);

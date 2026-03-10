@@ -171,7 +171,11 @@ export function Shop({ user }: { user: SessionUser }) {
 
   async function deleteList(listId: string) {
     const target = lists.find((list) => list.id === listId);
-    const ok = window.confirm(shop.deleteCartConfirm(target?.name ?? shop.selectedCartFallback));
+    const ok = await notice.confirm(shop.deleteCartConfirm(target?.name ?? shop.selectedCartFallback), {
+      cancelLabel: common.cancel,
+      confirmLabel: common.delete,
+      variant: "error",
+    });
     if (!ok) return;
 
     setDeletingListId(listId);

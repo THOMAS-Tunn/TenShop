@@ -307,7 +307,11 @@ export function Cart({ user }: { user: SessionUser }) {
     }
 
     const idsToDelete = [...selectedBulkIds];
-    const ok = window.confirm(shop.confirmDeleteSelectedCarts(idsToDelete.length));
+    const ok = await notice.confirm(shop.confirmDeleteSelectedCarts(idsToDelete.length), {
+      cancelLabel: common.cancel,
+      confirmLabel: common.delete,
+      variant: "error",
+    });
     if (!ok) return;
 
     setDeletingSelected(true);
