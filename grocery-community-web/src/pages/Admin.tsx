@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../components/Card";
 import { supabase } from "../lib/supabase";
 
@@ -88,15 +88,15 @@ export function Admin() {
 
   const [threads, setThreads] = useState<OrderRow[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
-
-  const [isSelecting, setIsSelecting] = useState(false);
-  const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
-
   const [selectedOrder, setSelectedOrder] = useState<OrderRow | null>(null);
   const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
   const [selectedMessages, setSelectedMessages] = useState<OrderMessage[]>([]);
+
   const [addressMap, setAddressMap] = useState<Record<string, Address>>({});
   const [profileMap, setProfileMap] = useState<Record<string, Profile>>({});
+
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
 
   const [replyBody, setReplyBody] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
@@ -110,6 +110,9 @@ export function Admin() {
   const [chatMinTotal, setChatMinTotal] = useState("");
   const [chatMaxTotal, setChatMaxTotal] = useState("");
   const [chatFilterOpen, setChatFilterOpen] = useState(false);
+
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const shouldStickToBottomRef = useRef(true);
 
   const money = useMemo(
     () => (cents: number) =>
@@ -234,8 +237,7 @@ export function Admin() {
     const next = (data ?? []) as OrderRow[];
     setThreads(next);
 
-    const userIds = Array.from(new Set(next.map((x) => x.user_id).filter(Boolean)));
-
+    const userIds = Array.from(new Set(next.map((thread) => thread.user_id).filter(Boolean)));
     if (userIds.length > 0) {
       const { data: profiles } = await supabase
         .from("profiles")
@@ -243,19 +245,15 @@ export function Admin() {
         .in("id", userIds);
 
       const nextProfileMap: Record<string, Profile> = {};
-      for (const p of profiles ?? []) {
-        nextProfileMap[p.id] = p as Profile;
+      for (const profile of profiles ?? []) {
+        nextProfileMap[profile.id] = profile as Profile;
       }
       setProfileMap(nextProfileMap);
     } else {
       setProfileMap({});
     }
 
-    if (!selectedChatId && next[0]) {
-      setSelectedChatId(next[0].id);
-    }
-
-    if (selectedChatId && !next.some((x) => x.id === selectedChatId)) {
+    if (selectedChatId && !next.some((thread) => thread.id === selectedChatId)) {
       closeChat();
     }
   }
@@ -304,9 +302,8 @@ export function Admin() {
 
     const addressIds = new Set<string>();
     if (order.address_id) addressIds.add(order.address_id);
-
-    for (const m of messages) {
-      if (m.address_id) addressIds.add(m.address_id);
+    for (const message of messages) {
+      if (message.address_id) addressIds.add(message.address_id);
     }
 
     if (addressIds.size > 0) {
@@ -316,8 +313,8 @@ export function Admin() {
         .in("id", Array.from(addressIds));
 
       const nextAddressMap: Record<string, Address> = {};
-      for (const a of addresses ?? []) {
-        nextAddressMap[a.id] = a as Address;
+      for (const address of addresses ?? []) {
+        nextAddressMap[address.id] = address as Address;
       }
       setAddressMap(nextAddressMap);
     } else {
@@ -336,6 +333,38 @@ export function Admin() {
     if (!selectedChatId) return;
     void loadSelectedOrder(selectedChatId);
   }, [selectedChatId]);
+
+  useEffect(() => {
+    if (activeTab === "items") {
+      closeChat();
+      setChatFilterOpen(false);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!selectedChatId) return;
+    shouldStickToBottomRef.current = true;
+
+    const frame = window.requestAnimationFrame(() => {
+      const container = messagesContainerRef.current;
+      if (!container) return;
+      container.scrollTop = container.scrollHeight;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [selectedChatId]);
+
+  useEffect(() => {
+    if (!selectedChatId || !shouldStickToBottomRef.current) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const container = messagesContainerRef.current;
+      if (!container) return;
+      container.scrollTop = container.scrollHeight;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [selectedChatId, selectedMessages.length]);
 
   useEffect(() => {
     const channel = supabase
@@ -369,7 +398,6 @@ export function Admin() {
 
   async function addItem(e: React.FormEvent) {
     e.preventDefault();
-
     const { error } = await supabase.from("products").insert({
       name,
       price_cents: Math.round(price * 100),
@@ -547,10 +575,29 @@ export function Admin() {
     await loadSelectedOrder(selectedChatId);
   }
 
-  async function sendReply(e: React.FormEvent) {
-    e.preventDefault();
+  function openChat(orderId: string) {
+    shouldStickToBottomRef.current = true;
+    setChatFilterOpen(false);
+    setReplyBody("");
+    setSelectedOrder(null);
+    setSelectedItems([]);
+    setSelectedMessages([]);
+    setLoadingChat(true);
+    setSelectedChatId(orderId);
+  }
 
-    if (!selectedChatId || !replyBody.trim()) return;
+  function handleConversationScroll() {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    shouldStickToBottomRef.current = distanceFromBottom < 48;
+  }
+
+  async function submitReply() {
+    const nextBody = replyBody.trim();
+    if (!selectedChatId || !nextBody || sendingReply) return;
 
     setSendingReply(true);
 
@@ -565,53 +612,78 @@ export function Admin() {
       return;
     }
 
+    const optimisticId = `temp-${Date.now()}`;
+    const optimisticMessage: OrderMessage = {
+      id: optimisticId,
+      order_id: selectedChatId,
+      sender_user_id: user.id,
+      message_type: "text",
+      body: nextBody,
+      address_id: null,
+      created_at: new Date().toISOString(),
+    };
+
+    shouldStickToBottomRef.current = true;
+    setReplyBody("");
+    setSelectedMessages((prev) => [...prev, optimisticMessage]);
+
     const { error } = await supabase.from("order_messages").insert({
       order_id: selectedChatId,
       sender_user_id: user.id,
       message_type: "text",
-      body: replyBody.trim(),
+      body: nextBody,
     });
 
     setSendingReply(false);
 
     if (error) {
+      setSelectedMessages((prev) => prev.filter((message) => message.id !== optimisticId));
+      setReplyBody(nextBody);
       alert(error.message);
-      return;
     }
+  }
 
-    setReplyBody("");
-    await loadSelectedOrder(selectedChatId);
-    await loadThreads();
+  function sendReply(e: React.FormEvent) {
+    e.preventDefault();
+    void submitReply();
+  }
+
+  function handleReplyKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    e.preventDefault();
+    void submitReply();
   }
 
   function closeChat() {
+    shouldStickToBottomRef.current = true;
     setSelectedChatId(null);
     setSelectedOrder(null);
     setSelectedItems([]);
     setSelectedMessages([]);
     setReplyBody("");
+    setLoadingChat(false);
   }
 
   function renderAddress(addressId: string | null | undefined) {
     if (!addressId) return null;
 
-    const a = addressMap[addressId];
-    if (!a) return null;
+    const address = addressMap[addressId];
+    if (!address) return null;
 
     return (
       <div className="rounded-2xl border bg-slate-50 px-4 py-3 text-sm text-slate-700">
-        <div className="font-medium text-slate-900">{a.label ?? "Delivery address"}</div>
-        <div className="mt-2">{a.recipient_name ?? "No recipient"}</div>
-        <div>{a.street_1}</div>
-        {a.street_2 ? <div>{a.street_2}</div> : null}
+        <div className="font-medium text-slate-900">{address.label ?? "Delivery address"}</div>
+        <div className="mt-2">{address.recipient_name ?? "No recipient"}</div>
+        <div>{address.street_1}</div>
+        {address.street_2 ? <div>{address.street_2}</div> : null}
         <div>
-          {a.city}
-          {a.state ? `, ${a.state}` : ""} {a.postal_code ?? ""}
+          {address.city}
+          {address.state ? `, ${address.state}` : ""} {address.postal_code ?? ""}
         </div>
-        <div>{a.country}</div>
-        {a.phone ? <div className="mt-2">Phone: {a.phone}</div> : null}
-        {a.delivery_notes ? (
-          <div className="mt-2 text-slate-500">Notes: {a.delivery_notes}</div>
+        <div>{address.country}</div>
+        {address.phone ? <div className="mt-2">Phone: {address.phone}</div> : null}
+        {address.delivery_notes ? (
+          <div className="mt-2 text-slate-500">Notes: {address.delivery_notes}</div>
         ) : null}
       </div>
     );
@@ -663,83 +735,81 @@ export function Admin() {
             <Card className="p-6">
               <div className="text-sm font-semibold">Add product</div>
 
-            <form onSubmit={addItem} className="mt-4 grid gap-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Product name
-                </label>
-                <input
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-2 outline-none transition focus:border-slate-400"
-                  placeholder="Product name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Image URL
-                </label>
-                <input
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-2 outline-none transition focus:border-slate-400"
-                  placeholder="https://..."
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Price (USD)
-                </label>
-                <input
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-2 outline-none transition focus:border-slate-400"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={price}
-                  onChange={(e) => setPrice(Number(e.target.value))}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Tags
-                </label>
-                <input
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-2 outline-none transition focus:border-slate-400"
-                  placeholder="Fresh, Organic, 1 lb"
-                  value={propertiesInput}
-                  onChange={(e) => setPropertiesInput(e.target.value)}
-                />
-                <div className="mt-1 text-xs text-slate-500">
-                  Separate each property with a comma.
+              <form onSubmit={addItem} className="mt-4 grid gap-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Product name
+                  </label>
+                  <input
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-2 outline-none transition focus:border-slate-400"
+                    placeholder="Product name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
                 </div>
-              </div>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Description
-                </label>
-                <textarea
-                  className="min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-slate-400"
-                  placeholder="One description for this item"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
-              </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Image URL
+                  </label>
+                  <input
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-2 outline-none transition focus:border-slate-400"
+                    placeholder="https://..."
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                  />
+                </div>
 
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="submit"
-                  className="rounded-2xl bg-slate-900 px-4 py-2 text-white hover:opacity-90"
-                >
-                  Add Product
-                </button>
-              </div>
-            </form>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Price (USD)
+                  </label>
+                  <input
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-2 outline-none transition focus:border-slate-400"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={price}
+                    onChange={(e) => setPrice(Number(e.target.value))}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">Tags</label>
+                  <input
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-2 outline-none transition focus:border-slate-400"
+                    placeholder="Fresh, Organic, 1 lb"
+                    value={propertiesInput}
+                    onChange={(e) => setPropertiesInput(e.target.value)}
+                  />
+                  <div className="mt-1 text-xs text-slate-500">
+                    Separate each property with a comma.
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Description
+                  </label>
+                  <textarea
+                    className="min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-slate-400"
+                    placeholder="One description for this item"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="submit"
+                    className="rounded-2xl bg-slate-900 px-4 py-2 text-white hover:opacity-90"
+                  >
+                    Add Product
+                  </button>
+                </div>
+              </form>
             </Card>
 
             <Card className="p-6">
@@ -773,133 +843,133 @@ export function Admin() {
                     const isEditing = editingId === item.id;
 
                     return (
-                      <div
-                        key={item.id}
-                        className="rounded-3xl border border-slate-200 px-4 py-4"
-                      >
+                      <div key={item.id} className="rounded-3xl border border-slate-200 px-4 py-4">
                         {isEditing ? (
                           <div className="grid gap-4">
-                          <div className="grid gap-4 md:grid-cols-[140px_1fr]">
-                            <div className="aspect-square overflow-hidden rounded-2xl bg-slate-100">
-                              {editImageUrl ? (
-                                <img
-                                  src={editImageUrl}
-                                  alt={editName || item.name}
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : null}
-                            </div>
-
-                            <div className="grid gap-3">
-                              <input
-                                className="w-full rounded-2xl border border-slate-200 px-4 py-2"
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                placeholder="Product name"
-                              />
-                              <input
-                                className="w-full rounded-2xl border border-slate-200 px-4 py-2"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={editPrice}
-                                onChange={(e) => setEditPrice(Number(e.target.value))}
-                                placeholder="Price"
-                              />
-                              <input
-                                className="w-full rounded-2xl border border-slate-200 px-4 py-2"
-                                value={editImageUrl}
-                                onChange={(e) => setEditImageUrl(e.target.value)}
-                                placeholder="Image URL"
-                              />
-                              <input
-                                className="w-full rounded-2xl border border-slate-200 px-4 py-2"
-                                value={editPropertiesInput}
-                                onChange={(e) => setEditPropertiesInput(e.target.value)}
-                                placeholder="Fresh, Organic, 1 lb"
-                              />
-                            </div>
-                          </div>
-
-                          <textarea
-                            className="min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3"
-                            value={editDescription}
-                            onChange={(e) => setEditDescription(e.target.value)}
-                            placeholder="Product description"
-                          />
-
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => saveItem(item.id)}
-                              className="rounded-2xl bg-slate-900 px-4 py-2 text-sm text-white"
-                            >
-                              Save
-                            </button>
-                            <button
-                              type="button"
-                              onClick={cancelEditing}
-                              className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                          <div className="flex min-w-0 gap-4">
-                            <div className="h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
-                              {item.image_url ? (
-                                <img
-                                  src={item.image_url}
-                                  alt={item.name}
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : null}
-                            </div>
-
-                            <div className="min-w-0">
-                              <div className="truncate font-medium text-slate-900">{item.name}</div>
-                              <div className="mt-1 text-sm text-slate-600">
-                                {money(item.price_cents)} • {item.in_stock ? "In stock" : "Out of stock"}
+                            <div className="grid gap-4 md:grid-cols-[140px_1fr]">
+                              <div className="aspect-square overflow-hidden rounded-2xl bg-slate-100">
+                                {editImageUrl ? (
+                                  <img
+                                    src={editImageUrl}
+                                    alt={editName || item.name}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : null}
                               </div>
-                              {item.properties?.length ? (
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {item.properties.map((property) => (
-                                    <span
-                                      key={property}
-                                      className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700"
-                                    >
-                                      {property}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : null}
-                              {item.description ? (
-                                <p className="mt-2 line-clamp-3 text-sm text-slate-600">
-                                  {item.description}
-                                </p>
-                              ) : null}
+
+                              <div className="grid gap-3">
+                                <input
+                                  className="w-full rounded-2xl border border-slate-200 px-4 py-2"
+                                  value={editName}
+                                  onChange={(e) => setEditName(e.target.value)}
+                                  placeholder="Product name"
+                                />
+                                <input
+                                  className="w-full rounded-2xl border border-slate-200 px-4 py-2"
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={editPrice}
+                                  onChange={(e) => setEditPrice(Number(e.target.value))}
+                                  placeholder="Price"
+                                />
+                                <input
+                                  className="w-full rounded-2xl border border-slate-200 px-4 py-2"
+                                  value={editImageUrl}
+                                  onChange={(e) => setEditImageUrl(e.target.value)}
+                                  placeholder="Image URL"
+                                />
+                                <input
+                                  className="w-full rounded-2xl border border-slate-200 px-4 py-2"
+                                  value={editPropertiesInput}
+                                  onChange={(e) => setEditPropertiesInput(e.target.value)}
+                                  placeholder="Fresh, Organic, 1 lb"
+                                />
+                              </div>
+                            </div>
+
+                            <textarea
+                              className="min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3"
+                              value={editDescription}
+                              onChange={(e) => setEditDescription(e.target.value)}
+                              placeholder="Product description"
+                            />
+
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => saveItem(item.id)}
+                                className="rounded-2xl bg-slate-900 px-4 py-2 text-sm text-white"
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelEditing}
+                                className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700"
+                              >
+                                Cancel
+                              </button>
                             </div>
                           </div>
+                        ) : (
+                          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                            <div className="flex min-w-0 gap-4">
+                              <div className="h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
+                                {item.image_url ? (
+                                  <img
+                                    src={item.image_url}
+                                    alt={item.name}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : null}
+                              </div>
 
-                          <div className="flex shrink-0 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => startEditing(item)}
-                              className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => deleteItem(item.id)}
-                              className="rounded-2xl border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 hover:bg-red-100"
-                            >
-                              Delete
-                            </button>
+                              <div className="min-w-0">
+                                <div className="truncate font-medium text-slate-900">
+                                  {item.name}
+                                </div>
+                                <div className="mt-1 text-sm text-slate-600">
+                                  {money(item.price_cents)} -{" "}
+                                  {item.in_stock ? "In stock" : "Out of stock"}
+                                </div>
+                                {item.properties?.length ? (
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {item.properties.map((property) => (
+                                      <span
+                                        key={property}
+                                        className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700"
+                                      >
+                                        {property}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : null}
+                                {item.description ? (
+                                  <p className="mt-2 line-clamp-3 text-sm text-slate-600">
+                                    {item.description}
+                                  </p>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            <div className="flex shrink-0 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => startEditing(item)}
+                                className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteItem(item.id)}
+                                className="rounded-2xl border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 hover:bg-red-100"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </div>
-                        </div>
                         )}
                       </div>
                     );
@@ -911,12 +981,16 @@ export function Admin() {
         ) : null}
 
         {activeTab === "chat" ? (
-          <div className="space-y-6">
-            <Card className="overflow-hidden border border-slate-800 bg-[#0b0b0c] p-0 text-white shadow-2xl">
+          <div
+            className={`grid gap-4 ${
+              selectedChatId ? "grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)]" : "grid-cols-1"
+            }`}
+          >
+            <Card className="flex min-h-[760px] flex-col overflow-visible border border-slate-800 bg-[#0b0b0c] p-0 text-white shadow-2xl">
               <div className="border-b border-slate-800 px-5 py-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-semibold text-black">Customer Chats</h2>
+                    <h2 className="text-lg font-semibold">Customer Chats</h2>
                     <p className="mt-1 text-sm text-slate-300">
                       Search by customer name or order, then use filters for date and total.
                     </p>
@@ -1076,194 +1150,220 @@ export function Admin() {
                 </div>
               </div>
 
-              <div className="h-[360px] divide-y divide-slate-800 overflow-y-auto">
-              {threads.length === 0 ? (
-                <div className="px-5 py-6 text-sm text-slate-400">No order chats yet.</div>
-              ) : filteredThreads.length === 0 ? (
-                <div className="px-5 py-6 text-sm text-slate-400">
-                  No chats match the current filters.
-                </div>
-              ) : (
-                filteredThreads.map((thread) => {
-                  const active = selectedChatId === thread.id;
-                  const checked = selectedBulkIds.includes(thread.id);
+              <div className="flex-1 divide-y divide-slate-800 overflow-y-auto">
+                {threads.length === 0 ? (
+                  <div className="flex h-full min-h-[560px] items-center justify-center px-6 text-sm text-slate-400">
+                    No order chats yet.
+                  </div>
+                ) : filteredThreads.length === 0 ? (
+                  <div className="flex h-full min-h-[560px] items-center justify-center px-6 text-sm text-slate-400">
+                    No chats match the current filters.
+                  </div>
+                ) : (
+                  filteredThreads.map((thread) => {
+                    const active = selectedChatId === thread.id;
+                    const checked = selectedBulkIds.includes(thread.id);
 
-                  return (
-                    <div
-                      key={thread.id}
-                      className={`flex items-start gap-3 px-5 py-4 transition ${
-                        active ? "bg-white/10" : "bg-transparent hover:bg-white/5"
-                      }`}
-                    >
-                      {isSelecting ? (
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleBulkSelection(thread.id)}
-                          className="mt-1 h-4 w-4 rounded accent-slate-700"
-                        />
-                      ) : null}
-
-                      <button
-                        type="button"
-                        onClick={() => setSelectedChatId(thread.id)}
-                        className="min-w-0 flex-1 text-left"
+                    return (
+                      <div
+                        key={thread.id}
+                        className={`flex items-start gap-3 px-5 py-4 transition ${
+                          active ? "bg-white/10" : "bg-transparent hover:bg-white/5"
+                        }`}
                       >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="truncate text-[15px] font-semibold">
-                            {getCustomerLabel(thread)}
-                          </div>
-                          <div className="shrink-0 text-xs text-slate-400">
-                            {formatTime(thread.created_at)}
-                          </div>
-                        </div>
+                        {isSelecting ? (
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleBulkSelection(thread.id)}
+                            className="mt-1 h-4 w-4 rounded accent-slate-700"
+                          />
+                        ) : null}
 
-                        <div className="mt-1 truncate text-sm text-slate-300">
-                          {thread.customer_note || `Order total ${money(thread.total_cents)}`}
-                        </div>
-
-                        <div className="mt-2 flex items-center gap-2 text-xs">
-                          <span
-                            className={`rounded-full px-2.5 py-1 font-semibold ${getStatusClasses(
-                              thread.status
-                            )}`}
-                          >
-                            {thread.status}
-                          </span>
-                          <span className="text-slate-500">
-                            Order #{thread.id.slice(0, 8)}
-                          </span>
-                        </div>
-                      </button>
-                    </div>
-                  );
-                })
-              )}
-              </div>
-
-              <div className="border-t border-slate-800 bg-white p-5 text-slate-900">
-              {!selectedChatId ? (
-                <div className="text-sm text-slate-600">Select a chat.</div>
-              ) : loadingChat ? (
-                <div className="text-sm text-slate-600">Loading chat…</div>
-              ) : !selectedOrder ? (
-                <div className="text-sm text-slate-600">Order not found.</div>
-              ) : (
-                <>
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">
-                        {getCustomerLabel(selectedOrder)}
-                      </div>
-                      <div className="mt-1 text-sm text-slate-600">
-                        Order #{selectedOrder.id.slice(0, 8)}
-                      </div>
-                      <div className="mt-1 flex items-center gap-2">
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClasses(
-                            selectedOrder.status
-                          )}`}
+                        <button
+                          type="button"
+                          onClick={() => openChat(thread.id)}
+                          className="min-w-0 flex-1 text-left"
                         >
-                          {selectedOrder.status}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {formatTime(selectedOrder.created_at)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={markCurrentAsShipped}
-                        className="rounded-2xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"
-                      >
-                        Mark shipped
-                      </button>
-                      <button
-                        type="button"
-                        onClick={closeChat}
-                        className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                    <div>
-                      <div className="mb-2 text-sm font-semibold">Order items</div>
-                      <div className="space-y-2">
-                        {selectedItems.map((item) => (
-                          <div
-                            key={item.id}
-                            className="flex items-center justify-between rounded-2xl border px-3 py-3 text-sm"
-                          >
-                            <div>
-                              {item.name} × {item.qty}
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="truncate text-[15px] font-semibold text-black">
+                              {getCustomerLabel(thread)}
                             </div>
-                            <div className="font-medium">
-                              {money(item.price_cents * item.qty)}
+                            <div className="shrink-0 text-xs text-slate-400">
+                              {formatTime(thread.created_at)}
                             </div>
                           </div>
-                        ))}
-                      </div>
 
-                      <div className="mt-3 rounded-2xl border bg-slate-50 px-4 py-3 text-sm">
-                        <div className="flex items-center justify-between">
-                          <span>Subtotal</span>
-                          <span>{money(selectedOrder.subtotal_cents)}</span>
-                        </div>
-                        <div className="mt-1 flex items-center justify-between">
-                          <span>Tax</span>
-                          <span>{money(selectedOrder.tax_cents)}</span>
-                        </div>
-                        <div className="mt-1 flex items-center justify-between">
-                          <span>Shipping</span>
-                          <span>{money(selectedOrderShippingCents)}</span>
-                        </div>
-                        <div className="mt-1 flex items-center justify-between font-semibold">
-                          <span>Total</span>
-                          <span>{money(selectedOrder.total_cents)}</span>
-                        </div>
-                      </div>
-                    </div>
+                          <div className="mt-1 truncate text-sm text-slate-300">
+                            {thread.customer_note || `Order total ${money(thread.total_cents)}`}
+                          </div>
 
-                    <div>
-                      <div className="mb-2 text-sm font-semibold">Delivery address</div>
-                      {renderAddress(selectedOrder.address_id)}
-                    </div>
+                          <div className="mt-2 flex items-center gap-2 text-xs">
+                            <span
+                              className={`rounded-full px-2.5 py-1 font-semibold ${getStatusClasses(
+                                thread.status
+                              )}`}
+                            >
+                              {thread.status}
+                            </span>
+                            <span className="text-slate-500">Order #{thread.id.slice(0, 8)}</span>
+                          </div>
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </Card>
+
+            {selectedChatId ? (
+              <Card className="flex min-h-[760px] flex-col overflow-hidden border border-slate-200 bg-white p-0 shadow-2xl">
+                {loadingChat ? (
+                  <div className="flex h-full items-center justify-center text-sm text-slate-600">
+                    Loading chat...
                   </div>
+                ) : !selectedOrder ? (
+                  <div className="flex h-full items-center justify-center text-sm text-slate-600">
+                    Order not found.
+                  </div>
+                ) : (
+                  <>
+                    <div className="border-b border-slate-200 bg-white px-5 py-4">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-slate-900">
+                            {getCustomerLabel(selectedOrder)}
+                          </div>
+                          <div className="mt-1 text-sm text-slate-600">
+                            Order #{selectedOrder.id.slice(0, 8)}
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClasses(
+                                selectedOrder.status
+                              )}`}
+                            >
+                              {selectedOrder.status}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {formatTime(selectedOrder.created_at)}
+                            </span>
+                          </div>
+                        </div>
 
-                  <div className="mt-5">
-                    <div className="mb-2 text-sm font-semibold">Conversation</div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={markCurrentAsShipped}
+                            className="rounded-2xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"
+                          >
+                            Mark shipped
+                          </button>
+                          <button
+                            type="button"
+                            onClick={closeChat}
+                            className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
 
-                    <div className="max-h-[300px] space-y-3 overflow-y-auto rounded-2xl border bg-slate-50 p-3">
+                      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                          <div className="text-sm font-semibold text-slate-900">Order summary</div>
+                          <div className="mt-3 space-y-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-600">Subtotal</span>
+                              <span>{money(selectedOrder.subtotal_cents)}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-600">Tax</span>
+                              <span>{money(selectedOrder.tax_cents)}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-600">Shipping</span>
+                              <span>{money(selectedOrderShippingCents)}</span>
+                            </div>
+                            <div className="flex items-center justify-between font-semibold text-slate-900">
+                              <span>Total</span>
+                              <span>{money(selectedOrder.total_cents)}</span>
+                            </div>
+                          </div>
+
+                          {selectedItems.length > 0 ? (
+                            <div className="mt-4 border-t border-slate-200 pt-4">
+                              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Items
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {selectedItems.map((item) => (
+                                  <span
+                                    key={item.id}
+                                    className="rounded-full bg-white px-3 py-1 text-xs text-slate-700 ring-1 ring-slate-200"
+                                  >
+                                    {item.name} x {item.qty}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                          <div className="mb-3 text-sm font-semibold text-slate-900">
+                            Delivery address
+                          </div>
+                          {renderAddress(selectedOrder.address_id) ?? (
+                            <div className="text-sm text-slate-600">No address shared yet.</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      ref={messagesContainerRef}
+                      onScroll={handleConversationScroll}
+                      className="flex-1 space-y-3 overflow-y-auto bg-slate-50 px-4 py-4"
+                    >
                       {selectedMessages.length === 0 ? (
-                        <div className="text-sm text-slate-600">No messages yet.</div>
+                        <div className="flex h-full min-h-[240px] items-center justify-center text-sm text-slate-600">
+                          No messages yet.
+                        </div>
                       ) : (
                         selectedMessages.map((message) => {
                           const isAddress = message.message_type === "address";
+                          const isCustomer = message.sender_user_id === selectedOrder.user_id;
 
                           return (
                             <div
                               key={message.id}
-                              className="rounded-2xl bg-white px-4 py-3 text-sm shadow-sm"
+                              className={`flex ${isCustomer ? "justify-start" : "justify-end"}`}
                             >
-                              <div className="text-xs text-slate-500">
-                                {message.sender_user_id === selectedOrder.user_id
-                                  ? getCustomerLabel(selectedOrder)
-                                  : "Admin"}{" "}
-                                • {formatTime(message.created_at)}
-                              </div>
+                              <div
+                                className={`max-w-[85%] rounded-[24px] px-4 py-3 text-sm shadow-sm ${
+                                  isCustomer
+                                    ? "border border-slate-200 bg-white text-slate-900"
+                                    : "bg-slate-900 text-white"
+                                }`}
+                              >
+                                <div
+                                  className={`text-xs ${
+                                    isCustomer ? "text-slate-500" : "text-slate-300"
+                                  }`}
+                                >
+                                  {isCustomer ? getCustomerLabel(selectedOrder) : "Admin"} -{" "}
+                                  {formatTime(message.created_at)}
+                                </div>
 
-                              <div className="mt-2">
-                                {isAddress ? renderAddress(message.address_id) : null}
-                                {!isAddress ? (
-                                  <div className="text-slate-800">
-                                    {message.body || "Empty message"}
-                                  </div>
-                                ) : null}
+                                <div className="mt-2">
+                                  {isAddress ? renderAddress(message.address_id) : null}
+                                  {!isAddress ? (
+                                    <div className={isCustomer ? "text-slate-800" : "text-white"}>
+                                      {message.body || "Empty message"}
+                                    </div>
+                                  ) : null}
+                                </div>
                               </div>
                             </div>
                           );
@@ -1271,26 +1371,28 @@ export function Admin() {
                       )}
                     </div>
 
-                    <form onSubmit={sendReply} className="mt-4 flex gap-2">
-                      <input
-                        value={replyBody}
-                        onChange={(e) => setReplyBody(e.target.value)}
-                        placeholder="Reply to customer..."
-                        className="w-full rounded-2xl border px-3 py-2 text-sm"
-                      />
-                      <button
-                        type="submit"
-                        disabled={sendingReply || !replyBody.trim()}
-                        className="rounded-2xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
-                      >
-                        {sendingReply ? "Sending..." : "Send"}
-                      </button>
+                    <form onSubmit={sendReply} className="border-t border-slate-200 bg-white p-4">
+                      <div className="flex items-center gap-3">
+                        <input
+                          value={replyBody}
+                          onChange={(e) => setReplyBody(e.target.value)}
+                          onKeyDown={handleReplyKeyDown}
+                          placeholder="Type a reply and press Enter..."
+                          className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                        />
+                        <button
+                          type="submit"
+                          disabled={sendingReply || !replyBody.trim()}
+                          className="rounded-2xl bg-slate-900 px-4 py-3 text-sm text-white disabled:opacity-60"
+                        >
+                          {sendingReply ? "Sending..." : "Send"}
+                        </button>
+                      </div>
                     </form>
-                  </div>
-                </>
-              )}
-              </div>
-            </Card>
+                  </>
+                )}
+              </Card>
+            ) : null}
           </div>
         ) : null}
       </div>
