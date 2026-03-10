@@ -101,6 +101,14 @@ export function Admin() {
   const [replyBody, setReplyBody] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
+  const [activeTab, setActiveTab] = useState<"chat" | "items">("chat");
+
+  const [itemSearch, setItemSearch] = useState("");
+  const [chatSearch, setChatSearch] = useState("");
+  const [chatDateFrom, setChatDateFrom] = useState("");
+  const [chatDateTo, setChatDateTo] = useState("");
+  const [chatMinTotal, setChatMinTotal] = useState("");
+  const [chatMaxTotal, setChatMaxTotal] = useState("");
 
   const money = useMemo(
     () => (cents: number) =>
@@ -139,6 +147,63 @@ export function Admin() {
     }
     return "bg-white/20 text-white ring-1 ring-white/25";
   }
+
+  const filteredItems = useMemo(() => {
+    const query = itemSearch.trim().toLowerCase();
+    if (!query) return items;
+
+    return items.filter((item) => {
+      const haystack = [
+        item.name,
+        item.description ?? "",
+        (item.properties ?? []).join(" "),
+        (item.price_cents / 100).toFixed(2),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [items, itemSearch]);
+
+  const filteredThreads = useMemo(() => {
+    const query = chatSearch.trim().toLowerCase();
+    const fromDate = chatDateFrom ? new Date(`${chatDateFrom}T00:00:00`) : null;
+    const toDate = chatDateTo ? new Date(`${chatDateTo}T23:59:59.999`) : null;
+
+    const minParsed = Number(chatMinTotal);
+    const minTotalCents =
+      chatMinTotal.trim() === "" || Number.isNaN(minParsed) ? null : Math.round(minParsed * 100);
+
+    const maxParsed = Number(chatMaxTotal);
+    const maxTotalCents =
+      chatMaxTotal.trim() === "" || Number.isNaN(maxParsed) ? null : Math.round(maxParsed * 100);
+
+    return threads.filter((thread) => {
+      if (query) {
+        const searchable = [
+          getCustomerLabel(thread),
+          thread.id,
+          thread.id.slice(0, 8),
+          thread.customer_note ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        if (!searchable.includes(query)) {
+          return false;
+        }
+      }
+
+      const createdAt = new Date(thread.created_at);
+      if (fromDate && createdAt < fromDate) return false;
+      if (toDate && createdAt > toDate) return false;
+      if (minTotalCents !== null && thread.total_cents < minTotalCents) return false;
+      if (maxTotalCents !== null && thread.total_cents > maxTotalCents) return false;
+
+      return true;
+    });
+  }, [threads, chatSearch, chatDateFrom, chatDateTo, chatMinTotal, chatMaxTotal, profileMap]);
 
   async function loadProducts() {
     const { data, error } = await supabase.from("products").select("*").order("name");
@@ -557,19 +622,43 @@ export function Admin() {
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-10">
-      <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-        <div className="space-y-6">
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-semibold leading-tight md:text-4xl">
-              Admin Dashboard
-            </h1>
-            <p className="mt-3 text-slate-600">
-              Manage products and real customer order chats.
-            </p>
+            <h1 className="text-3xl font-semibold leading-tight md:text-4xl">Admin Dashboard</h1>
+            <p className="mt-3 text-slate-600">Manage products and real customer order chats.</p>
           </div>
 
-          <Card className="p-6">
-            <div className="text-sm font-semibold">Add product</div>
+          <div className="inline-flex rounded-full border border-slate-300 bg-slate-100 p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setActiveTab("chat")}
+              className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                activeTab === "chat"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-700 hover:bg-white hover:text-slate-900"
+              }`}
+            >
+              Chat
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("items")}
+              className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                activeTab === "items"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-700 hover:bg-white hover:text-slate-900"
+              }`}
+            >
+              Items
+            </button>
+          </div>
+        </div>
+
+        {activeTab === "items" ? (
+          <div className="space-y-6">
+            <Card className="p-6">
+              <div className="text-sm font-semibold">Add product</div>
 
             <form onSubmit={addItem} className="mt-4 grid gap-4">
               <div>
@@ -648,27 +737,45 @@ export function Admin() {
                 </button>
               </div>
             </form>
-          </Card>
+            </Card>
 
-          <Card className="p-6">
-            <div className="text-sm font-semibold">Products</div>
-
-            <div className="mt-4 space-y-4">
-              {items.length === 0 ? (
-                <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-                  No products yet.
+            <Card className="p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm font-semibold">Products</div>
+                <div className="text-xs text-slate-500">
+                  {filteredItems.length} / {items.length} shown
                 </div>
-              ) : (
-                items.map((item) => {
-                  const isEditing = editingId === item.id;
+              </div>
 
-                  return (
-                    <div
-                      key={item.id}
-                      className="rounded-3xl border border-slate-200 px-4 py-4"
-                    >
-                      {isEditing ? (
-                        <div className="grid gap-4">
+              <div className="mt-3">
+                <input
+                  value={itemSearch}
+                  onChange={(e) => setItemSearch(e.target.value)}
+                  placeholder="Search items by name, tag, description, or price..."
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-slate-400"
+                />
+              </div>
+
+              <div className="mt-4 space-y-4">
+                {items.length === 0 ? (
+                  <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+                    No products yet.
+                  </div>
+                ) : filteredItems.length === 0 ? (
+                  <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+                    No products match your search.
+                  </div>
+                ) : (
+                  filteredItems.map((item) => {
+                    const isEditing = editingId === item.id;
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="rounded-3xl border border-slate-200 px-4 py-4"
+                      >
+                        {isEditing ? (
+                          <div className="grid gap-4">
                           <div className="grid gap-4 md:grid-cols-[140px_1fr]">
                             <div className="aspect-square overflow-hidden rounded-2xl bg-slate-100">
                               {editImageUrl ? (
@@ -790,23 +897,25 @@ export function Admin() {
                             </button>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </Card>
-        </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </Card>
+          </div>
+        ) : null}
 
-        <div className="space-y-6">
-          <Card className="overflow-hidden border border-slate-800 bg-[#0b0b0c] p-0 shadow-2xl">
-            <div className="border-b border-slate-800 px-5 py-4">
-              <div className="flex items-center justify-between gap-3">
+        {activeTab === "chat" ? (
+          <div className="space-y-6">
+            <Card className="overflow-hidden border border-slate-800 bg-[#0b0b0c] p-0 text-white shadow-2xl">
+              <div className="border-b border-slate-800 px-5 py-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-semibold ">Customer Chats</h2>
+                  <h2 className="text-lg font-semibold">Customer Chats</h2>
                   <p className="mt-1 text-sm text-slate-300">
-                    All pending requests and all chats.
+                    Search by customer, order, date, and total amount.
                   </p>
                 </div>
 
@@ -844,13 +953,60 @@ export function Admin() {
                   </div>
                 )}
               </div>
-            </div>
 
-            <div className="max-h-[360px] divide-y divide-slate-800 overflow-y-auto">
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                <input
+                  value={chatSearch}
+                  onChange={(e) => setChatSearch(e.target.value)}
+                  placeholder="Search name, order #, note..."
+                  className="rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 outline-none transition focus:border-slate-500"
+                />
+                <input
+                  type="date"
+                  value={chatDateFrom}
+                  onChange={(e) => setChatDateFrom(e.target.value)}
+                  className="rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-slate-500"
+                />
+                <input
+                  type="date"
+                  value={chatDateTo}
+                  onChange={(e) => setChatDateTo(e.target.value)}
+                  className="rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-slate-500"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={chatMinTotal}
+                  onChange={(e) => setChatMinTotal(e.target.value)}
+                  placeholder="Min total"
+                  className="rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 outline-none transition focus:border-slate-500"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={chatMaxTotal}
+                  onChange={(e) => setChatMaxTotal(e.target.value)}
+                  placeholder="Max total"
+                  className="rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 outline-none transition focus:border-slate-500"
+                />
+              </div>
+
+              <div className="mt-2 text-xs text-slate-400">
+                {filteredThreads.length} / {threads.length} chats shown
+              </div>
+              </div>
+
+              <div className="max-h-[360px] divide-y divide-slate-800 overflow-y-auto">
               {threads.length === 0 ? (
                 <div className="px-5 py-6 text-sm text-slate-400">No order chats yet.</div>
+              ) : filteredThreads.length === 0 ? (
+                <div className="px-5 py-6 text-sm text-slate-400">
+                  No chats match the current filters.
+                </div>
               ) : (
-                threads.map((thread) => {
+                filteredThreads.map((thread) => {
                   const active = selectedChatId === thread.id;
                   const checked = selectedBulkIds.includes(thread.id);
 
@@ -905,9 +1061,9 @@ export function Admin() {
                   );
                 })
               )}
-            </div>
+              </div>
 
-            <div className="border-t border-slate-800 bg-white p-5 text-slate-900">
+              <div className="border-t border-slate-800 bg-white p-5 text-slate-900">
               {!selectedChatId ? (
                 <div className="text-sm text-slate-600">Select a chat.</div>
               ) : loadingChat ? (
@@ -1055,9 +1211,10 @@ export function Admin() {
                   </div>
                 </>
               )}
-            </div>
-          </Card>
-        </div>
+              </div>
+            </Card>
+          </div>
+        ) : null}
       </div>
     </main>
   );
