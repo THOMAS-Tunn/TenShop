@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { Card } from "../components/Card";
+import { useAppSettings } from "../lib/app-settings";
 import type { SessionUser } from "../lib/auth";
 import { supabase } from "../lib/supabase";
-import { Card } from "../components/Card";
 
 type Product = {
   id: string;
@@ -40,6 +41,9 @@ const SHIPPING_FEE_CENTS = 499;
 export function ListDetail({ user }: { user: SessionUser }) {
   const { id: listId } = useParams();
   const navigate = useNavigate();
+  const { copy, formatCurrency } = useAppSettings();
+  const common = copy.common;
+  const page = copy.listDetail;
 
   const [items, setItems] = useState<ListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,15 +56,6 @@ export function ListDetail({ user }: { user: SessionUser }) {
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
   const [customerNote, setCustomerNote] = useState("");
   const [submittingOrder, setSubmittingOrder] = useState(false);
-
-  const money = useMemo(
-    () => (cents: number) =>
-      new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency: "USD",
-      }).format(cents / 100),
-    []
-  );
 
   async function loadItems() {
     if (!listId) return;
@@ -98,7 +93,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
     const next = (data ?? []) as Address[];
     setAddresses(next);
 
-    const defaultAddress = next.find((a) => a.is_default);
+    const defaultAddress = next.find((address) => address.is_default);
     if (defaultAddress) {
       setSelectedAddressId(defaultAddress.id);
     } else if (next[0]) {
@@ -119,7 +114,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
       return;
     }
 
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       setSearching(true);
 
       const { data, error } = await supabase
@@ -137,10 +132,10 @@ export function ListDetail({ user }: { user: SessionUser }) {
       setSearching(false);
     }, 250);
 
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [q]);
 
-  async function addProduct(p: Product) {
+  async function addProduct(product: Product) {
     if (!listId) return;
 
     const { data: existing, error: readErr } = await supabase
@@ -148,7 +143,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
       .select("id, qty")
       .eq("list_id", listId)
       .eq("user_id", user.id)
-      .eq("product_id", p.id)
+      .eq("product_id", product.id)
       .maybeSingle();
 
     if (readErr) {
@@ -159,9 +154,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
     if (existing?.id) {
       const nextQty = (existing.qty ?? 1) + 1;
 
-      setItems((prev) =>
-        prev.map((it) => (it.id === existing.id ? { ...it, qty: nextQty } : it))
-      );
+      setItems((prev) => prev.map((item) => (item.id === existing.id ? { ...item, qty: nextQty } : item)));
 
       const { error: updErr } = await supabase
         .from("shopping_list_items")
@@ -181,9 +174,9 @@ export function ListDetail({ user }: { user: SessionUser }) {
       .insert({
         list_id: listId,
         user_id: user.id,
-        product_id: p.id,
-        name: p.name,
-        price_cents: p.price_cents,
+        product_id: product.id,
+        name: product.name,
+        price_cents: product.price_cents,
         qty: 1,
       })
       .select("id,list_id,user_id,product_id,name,price_cents,qty")
@@ -195,12 +188,12 @@ export function ListDetail({ user }: { user: SessionUser }) {
     }
 
     setItems((prev) =>
-      [...prev, inserted as ListItem].sort((a, b) => a.name.localeCompare(b.name))
+      [...prev, inserted as ListItem].sort((left, right) => left.name.localeCompare(right.name))
     );
   }
 
   async function changeQty(itemId: string, delta: number) {
-    const current = items.find((it) => it.id === itemId);
+    const current = items.find((item) => item.id === itemId);
     if (!current) return;
 
     const nextQty = current.qty + delta;
@@ -210,14 +203,9 @@ export function ListDetail({ user }: { user: SessionUser }) {
       return;
     }
 
-    setItems((prev) =>
-      prev.map((it) => (it.id === itemId ? { ...it, qty: nextQty } : it))
-    );
+    setItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, qty: nextQty } : item)));
 
-    const { error } = await supabase
-      .from("shopping_list_items")
-      .update({ qty: nextQty })
-      .eq("id", itemId);
+    const { error } = await supabase.from("shopping_list_items").update({ qty: nextQty }).eq("id", itemId);
 
     if (error) {
       alert(error.message);
@@ -227,12 +215,9 @@ export function ListDetail({ user }: { user: SessionUser }) {
 
   async function removeItem(itemId: string) {
     const previous = items;
-    setItems((prev) => prev.filter((it) => it.id !== itemId));
+    setItems((prev) => prev.filter((item) => item.id !== itemId));
 
-    const { error } = await supabase
-      .from("shopping_list_items")
-      .delete()
-      .eq("id", itemId);
+    const { error } = await supabase.from("shopping_list_items").delete().eq("id", itemId);
 
     if (error) {
       alert(error.message);
@@ -240,10 +225,10 @@ export function ListDetail({ user }: { user: SessionUser }) {
     }
   }
 
-  const subtotalCents = useMemo(() => {
-    return items.reduce((sum, it) => sum + (it.price_cents ?? 0) * (it.qty ?? 0), 0);
-  }, [items]);
-
+  const subtotalCents = useMemo(
+    () => items.reduce((sum, item) => sum + (item.price_cents ?? 0) * (item.qty ?? 0), 0),
+    [items]
+  );
   const taxCents = Math.round(subtotalCents * 0.09);
   const shippingCents = items.length > 0 ? SHIPPING_FEE_CENTS : 0;
   const totalCents = subtotalCents + taxCents + shippingCents;
@@ -252,12 +237,12 @@ export function ListDetail({ user }: { user: SessionUser }) {
     if (!listId) return;
 
     if (items.length === 0) {
-      alert("Your list is empty.");
+      alert(page.listEmptyAlert);
       return;
     }
 
     if (!selectedAddressId) {
-      alert("Please add or select a delivery address first.");
+      alert(page.addressRequiredAlert);
       return;
     }
 
@@ -280,21 +265,19 @@ export function ListDetail({ user }: { user: SessionUser }) {
 
     if (orderError || !order) {
       setSubmittingOrder(false);
-      alert(orderError?.message ?? "Could not create order.");
+      alert(orderError?.message ?? page.couldNotCreateOrder);
       return;
     }
 
-    const orderItemsPayload = items.map((it) => ({
+    const orderItemsPayload = items.map((item) => ({
       order_id: order.id,
-      product_id: it.product_id,
-      name: it.name,
-      price_cents: it.price_cents ?? 0,
-      qty: it.qty,
+      product_id: item.product_id,
+      name: item.name,
+      price_cents: item.price_cents ?? 0,
+      qty: item.qty,
     }));
 
-    const { error: itemsError } = await supabase
-      .from("order_items")
-      .insert(orderItemsPayload);
+    const { error: itemsError } = await supabase.from("order_items").insert(orderItemsPayload);
 
     if (itemsError) {
       setSubmittingOrder(false);
@@ -313,7 +296,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
         order_id: order.id,
         sender_user_id: user.id,
         message_type: "system",
-        body: `Order created with ${items.length} item(s).`,
+        body: `order_created:${items.length}`,
       },
       {
         order_id: order.id,
@@ -333,9 +316,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
       });
     }
 
-    const { error: messagesError } = await supabase
-      .from("order_messages")
-      .insert(messagesPayload);
+    const { error: messagesError } = await supabase.from("order_messages").insert(messagesPayload);
 
     setSubmittingOrder(false);
 
@@ -350,43 +331,41 @@ export function ListDetail({ user }: { user: SessionUser }) {
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       <div className="mb-4">
-        <h1 className="text-2xl font-semibold">Your list</h1>
-        <p className="text-sm text-slate-600">
-          Search products, add to cart, and update quantities.
-        </p>
+        <h1 className="text-2xl font-semibold">{page.title}</h1>
+        <p className="text-sm text-slate-600">{page.subtitle}</p>
       </div>
 
       <Card className="p-4">
-        <div className="text-sm font-semibold">Add items</div>
+        <div className="text-sm font-semibold">{page.addItems}</div>
 
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search products…"
+          placeholder={page.searchProducts}
           className="mt-2 w-full rounded-2xl border px-3 py-2 text-sm"
         />
 
         {q.trim() ? (
           <div className="mt-3 space-y-2">
             {searching ? (
-              <div className="text-sm text-slate-600">Searching…</div>
+              <div className="text-sm text-slate-600">{common.searching}</div>
             ) : results.length === 0 ? (
-              <div className="text-sm text-slate-600">No matches.</div>
+              <div className="text-sm text-slate-600">{page.noMatches}</div>
             ) : (
-              results.map((p) => (
+              results.map((product) => (
                 <button
-                  key={p.id}
+                  key={product.id}
                   type="button"
-                  onClick={() => addProduct(p)}
+                  onClick={() => void addProduct(product)}
                   className="flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-left text-sm hover:bg-slate-50"
                 >
                   <div>
-                    <div className="font-medium">{p.name}</div>
+                    <div className="font-medium">{product.name}</div>
                     <div className="text-xs text-slate-500">
-                      {p.category ?? "Uncategorized"}
+                      {product.category ?? page.uncategorized}
                     </div>
                   </div>
-                  <div className="font-semibold">{money(p.price_cents)}</div>
+                  <div className="font-semibold">{formatCurrency(product.price_cents)}</div>
                 </button>
               ))
             )}
@@ -396,42 +375,40 @@ export function ListDetail({ user }: { user: SessionUser }) {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_280px]">
         <Card className="p-4">
-          <div className="text-sm font-semibold">Cart items</div>
+          <div className="text-sm font-semibold">{page.cartItems}</div>
 
           {loading ? (
-            <div className="mt-3 text-sm text-slate-600">Loading…</div>
+            <div className="mt-3 text-sm text-slate-600">{common.loading}</div>
           ) : items.length === 0 ? (
-            <div className="mt-3 text-sm text-slate-600">
-              No items yet. Search above to add.
-            </div>
+            <div className="mt-3 text-sm text-slate-600">{page.noItemsYet}</div>
           ) : (
             <div className="mt-3 space-y-3">
-              {items.map((it) => (
+              {items.map((item) => (
                 <div
-                  key={it.id}
+                  key={item.id}
                   className="flex items-center justify-between gap-3 rounded-2xl border px-3 py-3"
                 >
                   <div>
-                    <div className="text-sm font-medium">{it.name}</div>
+                    <div className="text-sm font-medium">{item.name}</div>
                     <div className="text-xs text-slate-500">
-                      {it.price_cents != null ? money(it.price_cents) : "No price"}
+                      {item.price_cents != null ? formatCurrency(item.price_cents) : page.noPrice}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => changeQty(it.id, -1)}
+                      onClick={() => void changeQty(item.id, -1)}
                       className="h-9 w-9 rounded-xl border text-sm font-semibold hover:bg-slate-50"
                     >
                       -
                     </button>
 
-                    <div className="w-10 text-center text-sm font-medium">{it.qty}</div>
+                    <div className="w-10 text-center text-sm font-medium">{item.qty}</div>
 
                     <button
                       type="button"
-                      onClick={() => changeQty(it.id, 1)}
+                      onClick={() => void changeQty(item.id, 1)}
                       className="h-9 w-9 rounded-xl border text-sm font-semibold hover:bg-slate-50"
                     >
                       +
@@ -439,14 +416,14 @@ export function ListDetail({ user }: { user: SessionUser }) {
 
                     <button
                       type="button"
-                      onClick={() => removeItem(it.id)}
+                      onClick={() => void removeItem(item.id)}
                       className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
                     >
-                      Remove
+                      {page.remove}
                     </button>
 
                     <div className="w-24 text-right text-sm font-semibold">
-                      {money((it.price_cents ?? 0) * it.qty)}
+                      {formatCurrency((item.price_cents ?? 0) * item.qty)}
                     </div>
                   </div>
                 </div>
@@ -456,54 +433,63 @@ export function ListDetail({ user }: { user: SessionUser }) {
         </Card>
 
         <Card className="p-4">
-          <div className="text-sm font-semibold">Order total</div>
+          <div className="text-sm font-semibold">{page.orderTotal}</div>
 
           <div className="mt-3 space-y-2 text-sm">
             <div className="flex items-center justify-between">
-              <span className="text-slate-600">Subtotal</span>
-              <span className="font-semibold">{money(subtotalCents)}</span>
+              <span className="text-slate-600">{common.subtotal}</span>
+              <span className="font-semibold">{formatCurrency(subtotalCents)}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-600">Tax 9% <a href="https://www.google.com/search?q=columbus+georgia+local+tax+rate&sca_esv=6ed2f101db008005&rlz=1C1RXQR_enUS1110US1110&biw=1920&bih=929&ei=J3mtaYGuA8yap84PmfqYsAI&ved=0ahUKEwjB3ZDvs5CTAxVMzckDHRk9BiYQ4dUDCBQ&uact=5&oq=columbus+georgia+local+tax+rate&gs_lp=Egxnd3Mtd2l6LXNlcnAiH2NvbHVtYnVzIGdlb3JnaWEgbG9jYWwgdGF4IHJhdGUyBRAAGO8FMggQABiABBiiBDIIEAAYgAQYogQyCBAAGIAEGKIEMgUQABjvBUjWMVDqE1jhLnAFeAGQAQCYAXGgAaAGqgEDNy4yuAEDyAEA-AEBmAINoAL6BcICChAAGLADGNYEGEfCAgUQABiABMICBhAAGAcYHsICBhAAGAgYHsICCxAAGIAEGIYDGIoFwgIKECEYoAEYwwQYCpgDAIgGAZAGCJIHBDExLjKgB5kfsgcDNi4yuAftBcIHBTMuOC4yyAcWgAgA&sclient=gws-wiz-serp&safe=active&ssui=on" target="_blank"><u><i>(?)</i></u></a></span>
-              <span className="font-semibold">{money(taxCents)}</span>
+              <span className="text-slate-600">
+                {page.taxRate}{" "}
+                <a
+                  href="https://www.google.com/search?q=columbus+georgia+local+tax+rate&sca_esv=6ed2f101db008005&rlz=1C1RXQR_enUS1110US1110&biw=1920&bih=929&ei=J3mtaYGuA8yap84PmfqYsAI&ved=0ahUKEwjB3ZDvs5CTAxVMzckDHRk9BiYQ4dUDCBQ&uact=5&oq=columbus+georgia+local+tax+rate&gs_lp=Egxnd3Mtd2l6LXNlcnAiH2NvbHVtYnVzIGdlb3JnaWEgbG9jYWwgdGF4IHJhdGUyBRAAGO8FMggQABiABBiiBDIIEAAYgAQYogQyCBAAGIAEGKIEMgUQABjvBUjWMVDqE1jhLnAFeAGQAQCYAXGgAaAGqgEDNy4yuAEDyAEA-AEBmAINoAL6BcICChAAGLADGNYEGEfCAgUQABiABMICBhAAGAcYHsICBhAAGAgYHsICCxAAGIAEGIYDGIoFwgIKECEYoAEYwwQYCpgDAIgGAZAGCJIHBDExLjKgB5kfsgcDNi4yuAftBcIHBTMuOC4yyAcWgAgA&sclient=gws-wiz-serp&safe=active&ssui=on"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <u>
+                    <i>(?)</i>
+                  </u>
+                </a>
+              </span>
+              <span className="font-semibold">{formatCurrency(taxCents)}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-600">Shipping</span>
-              <span className="font-semibold">{money(shippingCents)}</span>
+              <span className="text-slate-600">{common.shipping}</span>
+              <span className="font-semibold">{formatCurrency(shippingCents)}</span>
             </div>
             <div className="h-px bg-slate-200" />
             <div className="flex items-center justify-between">
-              <span className="text-slate-900">Total</span>
-              <span className="text-lg font-semibold">{money(totalCents)}</span>
+              <span className="text-slate-900">{common.total}</span>
+              <span className="text-lg font-semibold">{formatCurrency(totalCents)}</span>
             </div>
           </div>
 
           <div className="mt-4">
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              Delivery address
+              {page.deliveryAddress}
             </label>
             <select
               value={selectedAddressId}
               onChange={(e) => setSelectedAddressId(e.target.value)}
               className="w-full rounded-2xl border px-3 py-2 text-sm"
             >
-              <option value="">Select address…</option>
-              {addresses.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {(a.label ?? "Address")} — {a.street_1}, {a.city}
+              <option value="">{page.selectAddress}</option>
+              {addresses.map((address) => (
+                <option key={address.id} value={address.id}>
+                  {page.addressOption(address.label ?? common.address, address.street_1, address.city)}
                 </option>
               ))}
             </select>
           </div>
 
           <div className="mt-4">
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Note to admin
-            </label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">{page.noteToAdmin}</label>
             <textarea
               value={customerNote}
               onChange={(e) => setCustomerNote(e.target.value)}
-              placeholder="Optional note about delivery, substitutions, timing..."
+              placeholder={page.notePlaceholder}
               className="w-full rounded-2xl border px-3 py-2 text-sm"
               rows={4}
             />
@@ -513,9 +499,9 @@ export function ListDetail({ user }: { user: SessionUser }) {
             type="button"
             disabled={items.length === 0 || submittingOrder}
             className="mt-4 w-full rounded-2xl bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-60"
-            onClick={submitOrder}
+            onClick={() => void submitOrder()}
           >
-            {submittingOrder ? "Sending order..." : "Send order request"}
+            {submittingOrder ? page.sendingOrder : page.sendOrderRequest}
           </button>
         </Card>
       </div>

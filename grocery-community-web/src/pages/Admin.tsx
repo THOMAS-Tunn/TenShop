@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../components/Card";
 import { ProductImageField } from "../components/ProductImageField";
+import { useAppSettings } from "../lib/app-settings";
 import { uploadProductImage } from "../lib/imagekit";
 import { supabase } from "../lib/supabase";
 
@@ -74,6 +75,17 @@ function parseProperties(value: string) {
 }
 
 export function Admin() {
+  const {
+    copy,
+    formatCurrency,
+    formatDateTime,
+    formatStatus,
+    formatStoredMessage,
+  } = useAppSettings();
+  const common = copy.common;
+  const adminCopy = copy.admin;
+  const money = formatCurrency;
+
   const [items, setItems] = useState<Product[]>([]);
   const [name, setName] = useState("");
   const [price, setPrice] = useState<number>(1);
@@ -120,23 +132,14 @@ export function Admin() {
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const shouldStickToBottomRef = useRef(true);
 
-  const money = useMemo(
-    () => (cents: number) =>
-      new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency: "USD",
-      }).format(cents / 100),
-    []
-  );
-
   function formatTime(value: string) {
-    return new Date(value).toLocaleString();
+    return formatDateTime(value);
   }
 
   function getCustomerLabel(order: OrderRow) {
     const profile = profileMap[order.user_id];
     if (profile?.full_name?.trim()) return profile.full_name;
-    return `Customer ${order.user_id.slice(0, 8)}`;
+    return common.customerId(order.user_id);
   }
 
   function getStatusClasses(status: string) {
@@ -471,7 +474,7 @@ export function Admin() {
       const nextUrl = await uploadProductImage(file);
       setImageUrl(nextUrl);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Image upload failed.");
+      alert(error instanceof Error ? error.message : adminCopy.imageUploadFailed);
     } finally {
       setUploadingNewImage(false);
     }
@@ -523,7 +526,7 @@ export function Admin() {
       const nextUrl = await uploadProductImage(file);
       setEditImageUrl(nextUrl);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Image upload failed.");
+      alert(error instanceof Error ? error.message : adminCopy.imageUploadFailed);
     } finally {
       setUploadingEditImage(false);
     }
@@ -558,11 +561,11 @@ export function Admin() {
 
   async function markSelectedAsShipped() {
     if (selectedBulkIds.length === 0) {
-      alert("Select at least one chat first.");
+      alert(adminCopy.selectChatFirst);
       return;
     }
 
-    const ok = window.confirm("Are you sure you want to mark the selected chats as shipped?");
+    const ok = window.confirm(adminCopy.confirmMarkSelectedShipped);
     if (!ok) return;
 
     const { error } = await supabase
@@ -585,13 +588,11 @@ export function Admin() {
 
   async function hideSelectedChatsForAdmin() {
     if (selectedBulkIds.length === 0) {
-      alert("Select at least one chat first.");
+      alert(adminCopy.selectChatFirst);
       return;
     }
 
-    const ok = window.confirm(
-      "Are you sure you want to remove the selected chats from the admin board only?"
-    );
+    const ok = window.confirm(adminCopy.confirmHideSelectedChats);
     if (!ok) return;
 
     const {
@@ -600,7 +601,7 @@ export function Admin() {
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      alert("Could not find the signed-in admin.");
+      alert(adminCopy.adminNotFound);
       return;
     }
 
@@ -628,7 +629,7 @@ export function Admin() {
   async function markCurrentAsShipped() {
     if (!selectedChatId) return;
 
-    const ok = window.confirm("Are you sure you want to mark this order as shipped?");
+    const ok = window.confirm(adminCopy.confirmMarkCurrentShipped);
     if (!ok) return;
 
     const { error } = await supabase
@@ -680,7 +681,7 @@ export function Admin() {
 
     if (authError || !user) {
       setSendingReply(false);
-      alert("Could not find the signed-in admin.");
+      alert(adminCopy.adminNotFound);
       return;
     }
 
@@ -746,8 +747,10 @@ export function Admin() {
 
     return (
       <div className="rounded-2xl border bg-slate-50 px-4 py-3 text-sm text-slate-700">
-        <div className="font-medium text-slate-900">{address.label ?? "Delivery address"}</div>
-        <div className="mt-2">{address.recipient_name ?? "No recipient"}</div>
+        <div className="font-medium text-slate-900">
+          {address.label ?? common.deliveryAddress}
+        </div>
+        <div className="mt-2">{address.recipient_name ?? common.noRecipient}</div>
         <div>{address.street_1}</div>
         {address.street_2 ? <div>{address.street_2}</div> : null}
         <div>
@@ -755,9 +758,9 @@ export function Admin() {
           {address.state ? `, ${address.state}` : ""} {address.postal_code ?? ""}
         </div>
         <div>{address.country}</div>
-        {address.phone ? <div className="mt-2">Phone: {address.phone}</div> : null}
+        {address.phone ? <div className="mt-2">{common.phoneValue(address.phone)}</div> : null}
         {address.delivery_notes ? (
-          <div className="mt-2 text-slate-500">Notes: {address.delivery_notes}</div>
+          <div className="mt-2 text-slate-500">{common.notesValue(address.delivery_notes)}</div>
         ) : null}
       </div>
     );
@@ -774,8 +777,10 @@ export function Admin() {
       <div className="space-y-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-semibold leading-tight md:text-4xl">Admin Dashboard</h1>
-            <p className="mt-3 text-slate-600">Manage products and real customer order chats.</p>
+            <h1 className="text-3xl font-semibold leading-tight md:text-4xl">
+              {adminCopy.dashboardTitle}
+            </h1>
+            <p className="mt-3 text-slate-600">{adminCopy.dashboardSubtitle}</p>
           </div>
 
           <div className="inline-flex rounded-full border border-slate-300 bg-slate-100 p-1 shadow-sm">
@@ -788,7 +793,7 @@ export function Admin() {
                   : "text-slate-700 hover:bg-white hover:text-slate-900"
               }`}
             >
-              Chat
+              {adminCopy.tabChat}
             </button>
             <button
               type="button"
@@ -799,7 +804,7 @@ export function Admin() {
                   : "text-slate-700 hover:bg-white hover:text-slate-900"
               }`}
             >
-              Items
+              {adminCopy.tabItems}
             </button>
           </div>
         </div>
@@ -807,16 +812,16 @@ export function Admin() {
         {activeTab === "items" ? (
           <div className="space-y-6">
             <Card className="p-6">
-              <div className="text-sm font-semibold">Add product</div>
+              <div className="text-sm font-semibold">{adminCopy.addProduct}</div>
 
               <form onSubmit={addItem} className="mt-4 grid gap-4">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Product name
+                    {adminCopy.productName}
                   </label>
                   <input
                     className="w-full rounded-2xl border border-slate-200 px-4 py-2 outline-none transition focus:border-slate-400"
-                    placeholder="Product name"
+                    placeholder={adminCopy.productName}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
@@ -824,9 +829,9 @@ export function Admin() {
                 </div>
 
                 <ProductImageField
-                  label="Product image"
+                  label={adminCopy.productImage}
                   value={imageUrl}
-                  previewAlt={name || "New product image"}
+                  previewAlt={name || adminCopy.newProductImage}
                   uploading={uploadingNewImage}
                   onChange={setImageUrl}
                   onUpload={handleNewImageUpload}
@@ -834,7 +839,7 @@ export function Admin() {
 
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Price (USD)
+                    {adminCopy.priceUsd}
                   </label>
                   <input
                     className="w-full rounded-2xl border border-slate-200 px-4 py-2 outline-none transition focus:border-slate-400"
@@ -848,25 +853,27 @@ export function Admin() {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">Tags</label>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    {adminCopy.tags}
+                  </label>
                   <input
                     className="w-full rounded-2xl border border-slate-200 px-4 py-2 outline-none transition focus:border-slate-400"
-                    placeholder="Fresh, Organic, 1 lb"
+                    placeholder={adminCopy.tagsPlaceholder}
                     value={propertiesInput}
                     onChange={(e) => setPropertiesInput(e.target.value)}
                   />
                   <div className="mt-1 text-xs text-slate-500">
-                    Separate each property with a comma.
+                    {adminCopy.tagsHint}
                   </div>
                 </div>
 
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Description
+                    {adminCopy.description}
                   </label>
                   <textarea
                     className="min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-slate-400"
-                    placeholder="One description for this item"
+                    placeholder={adminCopy.descriptionPlaceholder}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                   />
@@ -877,7 +884,7 @@ export function Admin() {
                     type="submit"
                     className="rounded-2xl bg-slate-900 px-4 py-2 text-white hover:opacity-90"
                   >
-                    Add Product
+                    {adminCopy.addProductButton}
                   </button>
                 </div>
               </form>
@@ -885,9 +892,9 @@ export function Admin() {
 
             <Card className="p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="text-sm font-semibold">Products</div>
+                <div className="text-sm font-semibold">{adminCopy.products}</div>
                 <div className="text-xs text-slate-500">
-                  {filteredItems.length} / {items.length} shown
+                  {common.shownCount(filteredItems.length, items.length)}
                 </div>
               </div>
 
@@ -895,7 +902,7 @@ export function Admin() {
                 <input
                   value={itemSearch}
                   onChange={(e) => setItemSearch(e.target.value)}
-                  placeholder="Search items by name, tag, description, or price..."
+                  placeholder={adminCopy.searchItemsPlaceholder}
                   className="w-full rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-slate-400"
                 />
               </div>
@@ -903,11 +910,11 @@ export function Admin() {
               <div className="mt-4 space-y-4">
                 {items.length === 0 ? (
                   <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-                    No products yet.
+                    {adminCopy.noProductsYet}
                   </div>
                 ) : filteredItems.length === 0 ? (
                   <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-                    No products match your search.
+                    {adminCopy.noProductsMatch}
                   </div>
                 ) : (
                   filteredItems.map((item) => {
@@ -918,7 +925,7 @@ export function Admin() {
                         {isEditing ? (
                           <div className="grid gap-4">
                             <ProductImageField
-                              label="Product image"
+                              label={adminCopy.productImage}
                               value={editImageUrl}
                               previewAlt={editName || item.name}
                               uploading={uploadingEditImage}
@@ -931,7 +938,7 @@ export function Admin() {
                                 className="w-full rounded-2xl border border-slate-200 px-4 py-2"
                                 value={editName}
                                 onChange={(e) => setEditName(e.target.value)}
-                                placeholder="Product name"
+                                placeholder={adminCopy.productName}
                               />
                               <input
                                 className="w-full rounded-2xl border border-slate-200 px-4 py-2"
@@ -940,13 +947,13 @@ export function Admin() {
                                 step="0.01"
                                 value={editPrice}
                                 onChange={(e) => setEditPrice(Number(e.target.value))}
-                                placeholder="Price"
+                                placeholder={adminCopy.pricePlaceholder}
                               />
                               <input
                                 className="w-full rounded-2xl border border-slate-200 px-4 py-2 md:col-span-2"
                                 value={editPropertiesInput}
                                 onChange={(e) => setEditPropertiesInput(e.target.value)}
-                                placeholder="Fresh, Organic, 1 lb"
+                                placeholder={adminCopy.tagsPlaceholder}
                               />
                             </div>
 
@@ -954,7 +961,7 @@ export function Admin() {
                               className="min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3"
                               value={editDescription}
                               onChange={(e) => setEditDescription(e.target.value)}
-                              placeholder="Product description"
+                              placeholder={adminCopy.productDescriptionPlaceholder}
                             />
 
                             <div className="flex flex-wrap gap-2">
@@ -963,14 +970,14 @@ export function Admin() {
                                 onClick={() => saveItem(item.id)}
                                 className="rounded-2xl bg-slate-900 px-4 py-2 text-sm text-white"
                               >
-                                Save
+                                {common.save}
                               </button>
                               <button
                                 type="button"
                                 onClick={cancelEditing}
                                 className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700"
                               >
-                                Cancel
+                                {common.cancel}
                               </button>
                             </div>
                           </div>
@@ -993,7 +1000,7 @@ export function Admin() {
                                 </div>
                                 <div className="mt-1 text-sm text-slate-600">
                                   {money(item.price_cents)} -{" "}
-                                  {item.in_stock ? "In stock" : "Out of stock"}
+                                  {item.in_stock ? adminCopy.inStock : adminCopy.outOfStock}
                                 </div>
                                 {item.properties?.length ? (
                                   <div className="mt-2 flex flex-wrap gap-2">
@@ -1021,14 +1028,14 @@ export function Admin() {
                                 onClick={() => startEditing(item)}
                                 className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
                               >
-                                Edit
+                                {adminCopy.edit}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => deleteItem(item.id)}
                                 className="rounded-2xl border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 hover:bg-red-100"
                               >
-                                Delete
+                                {common.delete}
                               </button>
                             </div>
                           </div>
@@ -1052,9 +1059,9 @@ export function Admin() {
               <div className="border-b border-slate-800 px-5 py-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-semibold">Customer Chats</h2>
+                    <h2 className="text-lg font-semibold">{adminCopy.customerChats}</h2>
                     <p className="mt-1 text-sm text-slate-300">
-                      Search by customer name or order, then use filters for date and total.
+                      {adminCopy.customerChatsSubtitle}
                     </p>
                   </div>
 
@@ -1064,7 +1071,7 @@ export function Admin() {
                       onClick={startSelecting}
                       className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm hover:bg-slate-100"
                     >
-                      Select
+                      {adminCopy.select}
                     </button>
                   ) : (
                     <div className="flex flex-wrap gap-2">
@@ -1073,21 +1080,21 @@ export function Admin() {
                         onClick={cancelSelecting}
                         className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm hover:bg-slate-100"
                       >
-                        Cancel
+                        {common.cancel}
                       </button>
                       <button
                         type="button"
                         onClick={markSelectedAsShipped}
                         className="rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-900 shadow-sm hover:bg-emerald-200"
                       >
-                        Mark shipped
+                        {adminCopy.markShipped}
                       </button>
                       <button
                         type="button"
                         onClick={hideSelectedChatsForAdmin}
                         className="rounded-xl border border-red-300 bg-red-100 px-3 py-2 text-xs font-semibold text-red-900 shadow-sm hover:bg-red-200"
                       >
-                        Delete
+                        {common.delete}
                       </button>
                     </div>
                   )}
@@ -1098,13 +1105,13 @@ export function Admin() {
                     <input
                       value={chatSearch}
                       onChange={(e) => setChatSearch(e.target.value)}
-                      placeholder="Search customer name or order #..."
+                      placeholder={adminCopy.searchCustomersPlaceholder}
                       className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                     />
 
                     <button
                       type="button"
-                      aria-label="Open filters"
+                      aria-label={adminCopy.openFilters}
                       aria-expanded={chatFilterOpen}
                       onClick={() => setChatFilterOpen((prev) => !prev)}
                       className={`inline-flex h-10 w-10 items-center justify-center rounded-full border text-sm transition ${
@@ -1128,12 +1135,14 @@ export function Admin() {
                   {chatFilterOpen ? (
                     <div className="absolute right-0 z-20 mt-2 w-full max-w-sm rounded-2xl border border-slate-700 bg-[#101012] p-4 shadow-2xl">
                       <div className="text-xs font-semibold uppercase tracking-wide text-slate-300">
-                        Advanced Filters
+                        {adminCopy.advancedFilters}
                       </div>
 
                       <div className="mt-3 grid gap-3">
                         <div>
-                          <label className="mb-1 block text-xs text-slate-400">From date</label>
+                          <label className="mb-1 block text-xs text-slate-400">
+                            {adminCopy.fromDate}
+                          </label>
                           <input
                             type="date"
                             value={chatDateFrom}
@@ -1143,7 +1152,9 @@ export function Admin() {
                         </div>
 
                         <div>
-                          <label className="mb-1 block text-xs text-slate-400">To date</label>
+                          <label className="mb-1 block text-xs text-slate-400">
+                            {adminCopy.toDate}
+                          </label>
                           <input
                             type="date"
                             value={chatDateTo}
@@ -1154,7 +1165,9 @@ export function Admin() {
 
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <label className="mb-1 block text-xs text-slate-400">Min total</label>
+                            <label className="mb-1 block text-xs text-slate-400">
+                              {adminCopy.minTotal}
+                            </label>
                             <input
                               type="number"
                               min="0"
@@ -1167,7 +1180,9 @@ export function Admin() {
                           </div>
 
                           <div>
-                            <label className="mb-1 block text-xs text-slate-400">Max total</label>
+                            <label className="mb-1 block text-xs text-slate-400">
+                              {adminCopy.maxTotal}
+                            </label>
                             <input
                               type="number"
                               min="0"
@@ -1192,7 +1207,7 @@ export function Admin() {
                           }}
                           className="rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800"
                         >
-                          Clear
+                          {common.clear}
                         </button>
 
                         <button
@@ -1200,7 +1215,7 @@ export function Admin() {
                           onClick={() => setChatFilterOpen(false)}
                           className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-900 hover:bg-white"
                         >
-                          Done
+                          {common.done}
                         </button>
                       </div>
                     </div>
@@ -1208,18 +1223,18 @@ export function Admin() {
                 </div>
 
                 <div className="mt-2 text-xs text-slate-400">
-                  {filteredThreads.length} / {threads.length} chats shown
+                  {common.shownCount(filteredThreads.length, threads.length)}
                 </div>
               </div>
 
               <div className="min-h-0 flex-1 divide-y divide-slate-800 overflow-y-auto">
                 {threads.length === 0 ? (
                   <div className="flex h-full min-h-[560px] items-center justify-center px-6 text-sm text-slate-400">
-                    No order chats yet.
+                    {adminCopy.noOrderChats}
                   </div>
                 ) : filteredThreads.length === 0 ? (
                   <div className="flex h-full min-h-[560px] items-center justify-center px-6 text-sm text-slate-400">
-                    No chats match the current filters.
+                    {adminCopy.noChatsMatch}
                   </div>
                 ) : (
                   filteredThreads.map((thread) => {
@@ -1248,7 +1263,7 @@ export function Admin() {
                           className="min-w-0 flex-1 text-left"
                         >
                           <div className="flex items-center justify-between gap-3">
-                            <div className="truncate text-[15px] font-semibold text-black">
+                            <div className="truncate text-[15px] font-semibold text-white">
                               {getCustomerLabel(thread)}
                             </div>
                             <div className="shrink-0 text-xs text-slate-400">
@@ -1257,7 +1272,7 @@ export function Admin() {
                           </div>
 
                           <div className="mt-1 truncate text-sm text-slate-300">
-                            {thread.customer_note || `Order total ${money(thread.total_cents)}`}
+                            {thread.customer_note || common.orderPreviewTotal(money(thread.total_cents))}
                           </div>
 
                           <div className="mt-2 flex items-center gap-2 text-xs">
@@ -1266,9 +1281,9 @@ export function Admin() {
                                 thread.status
                               )}`}
                             >
-                              {thread.status}
+                              {formatStatus(thread.status)}
                             </span>
-                            <span className="text-slate-500">Order #{thread.id.slice(0, 8)}</span>
+                            <span className="text-slate-500">{common.orderId(thread.id)}</span>
                           </div>
                         </button>
                       </div>
@@ -1282,11 +1297,11 @@ export function Admin() {
               <Card className="flex h-[calc(100vh-12rem)] min-h-[620px] max-h-[860px] flex-col overflow-hidden border border-slate-200 bg-white p-0 shadow-2xl">
                 {loadingChat ? (
                   <div className="flex h-full items-center justify-center text-sm text-slate-600">
-                    Loading chat...
+                    {adminCopy.loadingChat}
                   </div>
                 ) : !selectedOrder ? (
                   <div className="flex h-full items-center justify-center text-sm text-slate-600">
-                    Order not found.
+                    {adminCopy.orderNotFound}
                   </div>
                 ) : (
                   <>
@@ -1297,7 +1312,7 @@ export function Admin() {
                             {getCustomerLabel(selectedOrder)}
                           </div>
                           <div className="mt-1 text-sm text-slate-600">
-                            Order #{selectedOrder.id.slice(0, 8)}
+                            {common.orderId(selectedOrder.id)}
                           </div>
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             <span
@@ -1305,7 +1320,7 @@ export function Admin() {
                                 selectedOrder.status
                               )}`}
                             >
-                              {selectedOrder.status}
+                              {formatStatus(selectedOrder.status)}
                             </span>
                             <span className="text-xs text-slate-500">
                               {formatTime(selectedOrder.created_at)}
@@ -1319,14 +1334,14 @@ export function Admin() {
                             onClick={markCurrentAsShipped}
                             className="rounded-2xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"
                           >
-                            Mark shipped
+                            {adminCopy.markShipped}
                           </button>
                           <button
                             type="button"
                             onClick={closeChat}
                             className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                           >
-                            Close
+                            {common.close}
                           </button>
                         </div>
                       </div>
@@ -1341,14 +1356,14 @@ export function Admin() {
                           >
                             <div>
                               <div className="text-sm font-semibold text-slate-900">
-                                Order summary
+                                {adminCopy.orderSummary}
                               </div>
                               <div className="mt-1 text-xs text-slate-500">
-                                {isSummaryOpen ? "Hide details" : "Show details"}
+                                {isSummaryOpen ? adminCopy.hideDetails : adminCopy.showDetails}
                               </div>
                             </div>
                             <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
-                              {isSummaryOpen ? "Close" : "Open"}
+                              {isSummaryOpen ? common.close : common.open}
                             </span>
                           </button>
 
@@ -1356,19 +1371,19 @@ export function Admin() {
                             <div className="max-h-64 overflow-y-auto border-t border-slate-200 px-4 py-4">
                               <div className="space-y-2 text-sm">
                                 <div className="flex items-center justify-between">
-                                  <span className="text-slate-600">Subtotal</span>
+                                  <span className="text-slate-600">{common.subtotal}</span>
                                   <span>{money(selectedOrder.subtotal_cents)}</span>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                  <span className="text-slate-600">Tax</span>
+                                  <span className="text-slate-600">{common.tax}</span>
                                   <span>{money(selectedOrder.tax_cents)}</span>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                  <span className="text-slate-600">Shipping</span>
+                                  <span className="text-slate-600">{common.shipping}</span>
                                   <span>{money(selectedOrderShippingCents)}</span>
                                 </div>
                                 <div className="flex items-center justify-between font-semibold text-slate-900">
-                                  <span>Total</span>
+                                  <span>{common.total}</span>
                                   <span>{money(selectedOrder.total_cents)}</span>
                                 </div>
                               </div>
@@ -1376,7 +1391,7 @@ export function Admin() {
                               {selectedItems.length > 0 ? (
                                 <div className="mt-4 border-t border-slate-200 pt-4">
                                   <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    Items
+                                    {common.items}
                                   </div>
                                   <div className="flex flex-wrap gap-2">
                                     {selectedItems.map((item) => (
@@ -1403,21 +1418,23 @@ export function Admin() {
                           >
                             <div>
                               <div className="text-sm font-semibold text-slate-900">
-                                Delivery address
+                                {common.deliveryAddress}
                               </div>
                               <div className="mt-1 text-xs text-slate-500">
-                                {isAddressOpen ? "Hide address" : "Show address"}
+                                {isAddressOpen ? adminCopy.hideAddress : adminCopy.showAddress}
                               </div>
                             </div>
                             <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
-                              {isAddressOpen ? "Close" : "Open"}
+                              {isAddressOpen ? common.close : common.open}
                             </span>
                           </button>
 
                           {isAddressOpen ? (
                             <div className="max-h-64 overflow-y-auto border-t border-slate-200 px-4 py-4">
                               {renderAddress(selectedOrder.address_id) ?? (
-                                <div className="text-sm text-slate-600">No address shared yet.</div>
+                                <div className="text-sm text-slate-600">
+                                  {adminCopy.noAddressShared}
+                                </div>
                               )}
                             </div>
                           ) : null}
@@ -1432,7 +1449,7 @@ export function Admin() {
                     >
                       {selectedMessages.length === 0 ? (
                         <div className="flex h-full min-h-[240px] items-center justify-center text-sm text-slate-600">
-                          No messages yet.
+                          {adminCopy.noMessagesYet}
                         </div>
                       ) : (
                         selectedMessages.map((message) => {
@@ -1456,7 +1473,7 @@ export function Admin() {
                                     isCustomer ? "text-slate-500" : "text-slate-300"
                                   }`}
                                 >
-                                  {isCustomer ? getCustomerLabel(selectedOrder) : "Admin"} -{" "}
+                                  {isCustomer ? getCustomerLabel(selectedOrder) : common.admin} -{" "}
                                   {formatTime(message.created_at)}
                                 </div>
 
@@ -1464,7 +1481,7 @@ export function Admin() {
                                   {isAddress ? renderAddress(message.address_id) : null}
                                   {!isAddress ? (
                                     <div className={isCustomer ? "text-slate-800" : "text-white"}>
-                                      {message.body || "Empty message"}
+                                      {formatStoredMessage(message.message_type, message.body)}
                                     </div>
                                   ) : null}
                                 </div>
@@ -1481,7 +1498,7 @@ export function Admin() {
                           value={replyBody}
                           onChange={(e) => setReplyBody(e.target.value)}
                           onKeyDown={handleReplyKeyDown}
-                          placeholder="Type a reply and press Enter..."
+                          placeholder={adminCopy.typeReply}
                           className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                         />
                         <button
@@ -1489,7 +1506,7 @@ export function Admin() {
                           disabled={sendingReply || !replyBody.trim()}
                           className="rounded-2xl bg-slate-900 px-4 py-3 text-sm text-white disabled:opacity-60"
                         >
-                          {sendingReply ? "Sending..." : "Send"}
+                          {sendingReply ? common.sending : common.send}
                         </button>
                       </div>
                     </form>

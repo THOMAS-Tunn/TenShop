@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import type { SessionUser } from "../lib/auth";
 import { Card } from "../components/Card";
+import { useAppSettings } from "../lib/app-settings";
+import type { SessionUser } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 
 type Address = {
@@ -19,11 +20,15 @@ type Address = {
 };
 
 export function Profile({ user }: { user: SessionUser }) {
+  const { copy } = useAppSettings();
+  const common = copy.common;
+  const profile = copy.profile;
+
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [addresses, setAddresses] = useState<Address[]>([]);
 
-  const [label, setLabel] = useState("Home");
+  const [label, setLabel] = useState(profile.homeLabel);
   const [recipientName, setRecipientName] = useState("");
   const [addressPhone, setAddressPhone] = useState("");
   const [street1, setStreet1] = useState("");
@@ -81,17 +86,14 @@ export function Profile({ user }: { user: SessionUser }) {
       return;
     }
 
-    alert("Profile saved");
+    alert(profile.profileSaved);
   }
 
   async function addAddress(e: React.FormEvent) {
     e.preventDefault();
 
     if (isDefault) {
-      await supabase
-        .from("user_addresses")
-        .update({ is_default: false })
-        .eq("user_id", user.id);
+      await supabase.from("user_addresses").update({ is_default: false }).eq("user_id", user.id);
     }
 
     const { error } = await supabase.from("user_addresses").insert({
@@ -114,7 +116,7 @@ export function Profile({ user }: { user: SessionUser }) {
       return;
     }
 
-    setLabel("Home");
+    setLabel(profile.homeLabel);
     setRecipientName("");
     setAddressPhone("");
     setStreet1("");
@@ -153,13 +155,11 @@ export function Profile({ user }: { user: SessionUser }) {
     }
 
     if ((count ?? 0) > 0) {
-      alert(
-        "You cannot delete this address because it is already used by one or more orders. Please keep it for order history, or add a new address and set that one as default."
-      );
+      alert(profile.cannotDeleteUsedAddress);
       return;
     }
 
-    const ok = window.confirm("Delete this saved address?");
+    const ok = window.confirm(profile.deleteAddressConfirm);
     if (!ok) return;
 
     const { error } = await supabase.from("user_addresses").delete().eq("id", addressId);
@@ -172,15 +172,15 @@ export function Profile({ user }: { user: SessionUser }) {
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-2xl font-semibold">Profile</h1>
+      <h1 className="text-2xl font-semibold">{profile.title}</h1>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <Card className="p-5">
-          <div className="text-sm font-semibold">Account</div>
+          <div className="text-sm font-semibold">{profile.account}</div>
 
           <form onSubmit={saveProfile} className="mt-4 grid gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Email</label>
+              <label className="mb-1 block text-sm font-medium text-slate-700">{common.email}</label>
               <input
                 value={user.email ?? ""}
                 disabled
@@ -189,7 +189,7 @@ export function Profile({ user }: { user: SessionUser }) {
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Full name</label>
+              <label className="mb-1 block text-sm font-medium text-slate-700">{common.fullName}</label>
               <input
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
@@ -198,7 +198,7 @@ export function Profile({ user }: { user: SessionUser }) {
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Phone</label>
+              <label className="mb-1 block text-sm font-medium text-slate-700">{common.phone}</label>
               <input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -207,89 +207,148 @@ export function Profile({ user }: { user: SessionUser }) {
             </div>
 
             <button className="rounded-2xl bg-slate-900 px-4 py-2 text-sm text-white">
-              Save profile
+              {profile.saveProfile}
             </button>
           </form>
         </Card>
 
         <Card className="p-5">
-          <div className="text-sm font-semibold">Add address</div>
+          <div className="text-sm font-semibold">{profile.addAddress}</div>
 
           <form onSubmit={addAddress} className="mt-4 grid gap-3">
-            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (Home, Work)" className="rounded-2xl border px-3 py-2 text-sm" />
-            <input value={recipientName} onChange={(e) => setRecipientName(e.target.value)} placeholder="Recipient name" className="rounded-2xl border px-3 py-2 text-sm" />
-            <input value={addressPhone} onChange={(e) => setAddressPhone(e.target.value)} placeholder="Phone" className="rounded-2xl border px-3 py-2 text-sm" />
-            <input value={street1} onChange={(e) => setStreet1(e.target.value)} placeholder="Street address" required className="rounded-2xl border px-3 py-2 text-sm" />
-            <input value={street2} onChange={(e) => setStreet2(e.target.value)} placeholder="Apartment / unit" className="rounded-2xl border px-3 py-2 text-sm" />
+            <input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder={profile.labelPlaceholder}
+              className="rounded-2xl border px-3 py-2 text-sm"
+            />
+            <input
+              value={recipientName}
+              onChange={(e) => setRecipientName(e.target.value)}
+              placeholder={profile.recipientNamePlaceholder}
+              className="rounded-2xl border px-3 py-2 text-sm"
+            />
+            <input
+              value={addressPhone}
+              onChange={(e) => setAddressPhone(e.target.value)}
+              placeholder={profile.phonePlaceholder}
+              className="rounded-2xl border px-3 py-2 text-sm"
+            />
+            <input
+              value={street1}
+              onChange={(e) => setStreet1(e.target.value)}
+              placeholder={profile.streetPlaceholder}
+              required
+              className="rounded-2xl border px-3 py-2 text-sm"
+            />
+            <input
+              value={street2}
+              onChange={(e) => setStreet2(e.target.value)}
+              placeholder={profile.apartmentPlaceholder}
+              className="rounded-2xl border px-3 py-2 text-sm"
+            />
 
             <div className="grid gap-3 md:grid-cols-3">
-              <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="City" required className="rounded-2xl border px-3 py-2 text-sm" />
-              <input value={stateValue} onChange={(e) => setStateValue(e.target.value)} placeholder="State" className="rounded-2xl border px-3 py-2 text-sm" />
-              <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="ZIP code" className="rounded-2xl border px-3 py-2 text-sm" />
+              <input
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder={profile.cityPlaceholder}
+                required
+                className="rounded-2xl border px-3 py-2 text-sm"
+              />
+              <input
+                value={stateValue}
+                onChange={(e) => setStateValue(e.target.value)}
+                placeholder={profile.statePlaceholder}
+                className="rounded-2xl border px-3 py-2 text-sm"
+              />
+              <input
+                value={postalCode}
+                onChange={(e) => setPostalCode(e.target.value)}
+                placeholder={profile.zipPlaceholder}
+                className="rounded-2xl border px-3 py-2 text-sm"
+              />
             </div>
 
-            <input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Country" className="rounded-2xl border px-3 py-2 text-sm" />
-            <textarea value={deliveryNotes} onChange={(e) => setDeliveryNotes(e.target.value)} placeholder="Delivery notes" className="rounded-2xl border px-3 py-2 text-sm" />
+            <input
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              placeholder={profile.countryPlaceholder}
+              className="rounded-2xl border px-3 py-2 text-sm"
+            />
+            <textarea
+              value={deliveryNotes}
+              onChange={(e) => setDeliveryNotes(e.target.value)}
+              placeholder={profile.deliveryNotesPlaceholder}
+              className="rounded-2xl border px-3 py-2 text-sm"
+            />
 
             <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} />
-              Make this my default address
+              <input
+                type="checkbox"
+                checked={isDefault}
+                onChange={(e) => setIsDefault(e.target.checked)}
+              />
+              {profile.makeDefault}
             </label>
 
             <button className="rounded-2xl bg-slate-900 px-4 py-2 text-sm text-white">
-              Add address
+              {profile.addAddressButton}
             </button>
           </form>
         </Card>
       </div>
 
       <Card className="mt-6 p-5">
-        <div className="text-sm font-semibold">Saved addresses</div>
+        <div className="text-sm font-semibold">{profile.savedAddresses}</div>
 
         <div className="mt-4 space-y-3">
           {addresses.length === 0 ? (
-            <div className="text-sm text-slate-600">No addresses yet.</div>
+            <div className="text-sm text-slate-600">{profile.noAddressesYet}</div>
           ) : (
-            addresses.map((a) => (
-              <div key={a.id} className="rounded-2xl border px-4 py-4">
+            addresses.map((address) => (
+              <div key={address.id} className="rounded-2xl border px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="font-medium">
-                      {a.label ?? "Address"} {a.is_default ? "• Default" : ""}
+                      {address.label ?? profile.addressFallback}
+                      {address.is_default ? ` | ${profile.defaultBadge}` : ""}
                     </div>
                     <div className="mt-1 text-sm text-slate-600">
-                      {a.recipient_name ?? "No recipient"}
+                      {address.recipient_name ?? common.noRecipient}
                     </div>
                   </div>
 
                   <div className="flex gap-2">
-                    {!a.is_default ? (
+                    {!address.is_default ? (
                       <button
-                        onClick={() => makeDefault(a.id)}
+                        onClick={() => void makeDefault(address.id)}
                         className="rounded-2xl border px-3 py-2 text-sm hover:bg-slate-50"
                       >
-                        Make default
+                        {profile.makeDefaultButton}
                       </button>
                     ) : null}
                     <button
-                      onClick={() => deleteAddress(a.id)}
+                      onClick={() => void deleteAddress(address.id)}
                       className="rounded-2xl border px-3 py-2 text-sm hover:bg-slate-50"
                     >
-                      Delete
+                      {common.delete}
                     </button>
                   </div>
                 </div>
 
                 <div className="mt-3 text-sm text-slate-700">
-                  <div>{a.street_1}</div>
-                  {a.street_2 ? <div>{a.street_2}</div> : null}
+                  <div>{address.street_1}</div>
+                  {address.street_2 ? <div>{address.street_2}</div> : null}
                   <div>
-                    {a.city}
-                    {a.state ? `, ${a.state}` : ""} {a.postal_code ?? ""}
+                    {address.city}
+                    {address.state ? `, ${address.state}` : ""} {address.postal_code ?? ""}
                   </div>
-                  <div>{a.country}</div>
-                  {a.delivery_notes ? (
-                    <div className="mt-2 text-slate-500">Notes: {a.delivery_notes}</div>
+                  <div>{address.country}</div>
+                  {address.delivery_notes ? (
+                    <div className="mt-2 text-slate-500">
+                      {common.notesValue(address.delivery_notes)}
+                    </div>
                   ) : null}
                 </div>
               </div>

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card } from "../components/Card";
+import { useAppSettings } from "../lib/app-settings";
 import type { SessionUser } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 
@@ -25,23 +26,15 @@ type OrderMessage = {
 };
 
 export function Chat({ user }: { user: SessionUser }) {
+  const { copy, formatCurrency, formatDateTime, formatStatus, formatStoredMessage } =
+    useAppSettings();
+  const common = copy.common;
+  const page = copy.chat;
+
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [lastMessageMap, setLastMessageMap] = useState<Record<string, OrderMessage | null>>({});
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  const money = useMemo(
-    () => (cents: number) =>
-      new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency: "USD",
-      }).format(cents / 100),
-    []
-  );
-
-  function formatTime(value: string) {
-    return new Date(value).toLocaleString();
-  }
 
   function getStatusClasses(status: string) {
     if (status === "pending") {
@@ -71,14 +64,14 @@ export function Chat({ user }: { user: SessionUser }) {
     const lastMessage = lastMessageMap[order.id];
 
     if (!lastMessage) {
-      return order.customer_note?.trim() || "Order request created.";
+      return order.customer_note?.trim() || page.orderRequestCreated;
     }
 
     if (lastMessage.message_type === "address") {
-      return "Delivery address shared";
+      return page.deliveryAddressShared;
     }
 
-    return lastMessage.body?.trim() || "New update";
+    return formatStoredMessage(lastMessage.message_type, lastMessage.body) || page.newUpdate;
   }
 
   async function loadChats() {
@@ -124,9 +117,9 @@ export function Chat({ user }: { user: SessionUser }) {
       nextMap[order.id] = null;
     }
 
-    for (const msg of (messageData ?? []) as OrderMessage[]) {
-      if (!nextMap[msg.order_id]) {
-        nextMap[msg.order_id] = msg;
+    for (const message of (messageData ?? []) as OrderMessage[]) {
+      if (!nextMap[message.order_id]) {
+        nextMap[message.order_id] = message;
       }
     }
 
@@ -135,15 +128,12 @@ export function Chat({ user }: { user: SessionUser }) {
   }
 
   async function deleteChat(orderId: string) {
-    const ok = window.confirm("Are you sure you want to delete this chat?");
+    const ok = window.confirm(page.deleteConfirm);
     if (!ok) return;
 
     setDeletingId(orderId);
 
-    const { error: messageError } = await supabase
-      .from("order_messages")
-      .delete()
-      .eq("order_id", orderId);
+    const { error: messageError } = await supabase.from("order_messages").delete().eq("order_id", orderId);
 
     if (messageError) {
       setDeletingId(null);
@@ -151,10 +141,7 @@ export function Chat({ user }: { user: SessionUser }) {
       return;
     }
 
-    const { error: itemError } = await supabase
-      .from("order_items")
-      .delete()
-      .eq("order_id", orderId);
+    const { error: itemError } = await supabase.from("order_items").delete().eq("order_id", orderId);
 
     if (itemError) {
       setDeletingId(null);
@@ -183,20 +170,12 @@ export function Chat({ user }: { user: SessionUser }) {
 
     const channel = supabase
       .channel(`customer-chats-${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
-        () => {
-          void loadChats();
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "order_messages" },
-        () => {
-          void loadChats();
-        }
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
+        void loadChats();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_messages" }, () => {
+        void loadChats();
+      })
       .subscribe();
 
     return () => {
@@ -208,24 +187,20 @@ export function Chat({ user }: { user: SessionUser }) {
     <main className="mx-auto max-w-5xl px-4 py-8">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Chat</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            View your order chats and delete older ones.
-          </p>
+          <h1 className="text-2xl font-semibold">{page.title}</h1>
+          <p className="mt-1 text-sm text-slate-600">{page.subtitle}</p>
         </div>
       </div>
 
       <div className="mt-6 space-y-4">
         {loading ? (
           <Card className="p-5">
-            <div className="text-sm text-slate-600">Loading chats...</div>
+            <div className="text-sm text-slate-600">{common.loading}</div>
           </Card>
         ) : orders.length === 0 ? (
           <Card className="p-5">
-            <div className="text-sm font-medium text-slate-900">No chats yet</div>
-            <p className="mt-2 text-sm text-slate-600">
-              Once you send an order request, it will appear here.
-            </p>
+            <div className="text-sm font-medium text-slate-900">{page.noChatsYet}</div>
+            <p className="mt-2 text-sm text-slate-600">{page.noChatsDescription}</p>
           </Card>
         ) : (
           orders.map((order) => (
@@ -234,19 +209,19 @@ export function Chat({ user }: { user: SessionUser }) {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="text-base font-semibold text-slate-900">
-                      Order #{order.id.slice(0, 8)}
+                      {common.orderId(order.id)}
                     </div>
                     <span
                       className={`rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClasses(
                         order.status
                       )}`}
                     >
-                      {order.status}
+                      {formatStatus(order.status)}
                     </span>
                   </div>
 
                   <div className="mt-2 text-sm text-slate-500">
-                    Created {formatTime(order.created_at)}
+                    {common.placed}: {formatDateTime(order.created_at)}
                   </div>
 
                   <div className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
@@ -254,7 +229,7 @@ export function Chat({ user }: { user: SessionUser }) {
                   </div>
 
                   <div className="mt-3 text-sm text-slate-700">
-                    Total: <span className="font-semibold">{money(order.total_cents)}</span>
+                    {common.total}: <span className="font-semibold">{formatCurrency(order.total_cents)}</span>
                   </div>
                 </div>
 
@@ -263,16 +238,16 @@ export function Chat({ user }: { user: SessionUser }) {
                     to={`/orders/${order.id}`}
                     className="rounded-2xl bg-slate-900 px-4 py-2 text-sm text-white hover:opacity-90"
                   >
-                    Open chat
+                    {page.openChat}
                   </Link>
 
                   <button
                     type="button"
-                    onClick={() => deleteChat(order.id)}
+                    onClick={() => void deleteChat(order.id)}
                     disabled={deletingId === order.id}
                     className="rounded-2xl border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700 hover:bg-red-100 disabled:opacity-60"
                   >
-                    {deletingId === order.id ? "Deleting..." : "Delete"}
+                    {deletingId === order.id ? common.deleting : common.delete}
                   </button>
                 </div>
               </div>

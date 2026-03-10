@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Card } from "../components/Card";
+import { useAppSettings } from "../lib/app-settings";
 import type { SessionUser } from "../lib/auth";
 import { supabase } from "../lib/supabase";
-import { Link } from "react-router-dom";
 
 type Product = {
   id: string;
@@ -33,11 +34,15 @@ type PendingItemAction = {
 };
 
 export function Shop({ user }: { user: SessionUser }) {
+  const { copy, formatCurrency, formatDateTime } = useAppSettings();
+  const common = copy.common;
+  const shop = copy.shop;
+
   const [products, setProducts] = useState<Product[]>([]);
   const [productSearch, setProductSearch] = useState("");
   const [lists, setLists] = useState<List[]>([]);
   const [listItems, setListItems] = useState<ListItem[]>([]);
-  const [listName, setListName] = useState("My List");
+  const [listName, setListName] = useState(shop.defaultListName);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
@@ -115,14 +120,6 @@ export function Shop({ user }: { user: SessionUser }) {
     void loadListItems(selectedListId);
   }, [selectedListId]);
 
-  const money = useMemo(
-    () => (cents: number) =>
-      new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(
-        cents / 100
-      ),
-    []
-  );
-
   const filteredProducts = useMemo(() => {
     const query = productSearch.trim().toLowerCase();
     if (!query) return products;
@@ -162,10 +159,7 @@ export function Shop({ user }: { user: SessionUser }) {
 
   async function deleteList(listId: string) {
     const target = lists.find((list) => list.id === listId);
-    const ok = window.confirm(
-      `Delete \"${target?.name ?? "this list"}\" and all of its items?`
-    );
-
+    const ok = window.confirm(shop.deleteListConfirm(target?.name ?? shop.selectedListFallback));
     if (!ok) return;
 
     setDeletingListId(listId);
@@ -196,10 +190,8 @@ export function Shop({ user }: { user: SessionUser }) {
     }
 
     const nextLists = await loadLists();
-    if (!nextLists.some((list) => list.id === listId)) {
-      if (selectedListId === listId) {
-        setSelectedListId(nextLists[0]?.id ?? null);
-      }
+    if (!nextLists.some((list) => list.id === listId) && selectedListId === listId) {
+      setSelectedListId(nextLists[0]?.id ?? null);
     }
   }
 
@@ -248,20 +240,20 @@ export function Shop({ user }: { user: SessionUser }) {
     }
   }
 
-  async function addProductToList(p: Product) {
+  async function addProductToList(product: Product) {
     if (!selectedListId) {
-      alert("Create/select a list first (right panel) before adding items.");
+      alert(shop.createOrSelectListFirst);
       return;
     }
 
-    setAddingId(p.id);
+    setAddingId(product.id);
 
     const { data: existing, error: readErr } = await supabase
       .from("shopping_list_items")
       .select("id, qty")
       .eq("list_id", selectedListId)
       .eq("user_id", user.id)
-      .eq("name", p.name)
+      .eq("name", product.name)
       .maybeSingle();
 
     if (readErr) {
@@ -289,9 +281,9 @@ export function Shop({ user }: { user: SessionUser }) {
     const { error: insErr } = await supabase.from("shopping_list_items").insert({
       list_id: selectedListId,
       user_id: user.id,
-      product_id: p.id,
-      name: p.name,
-      price_cents: p.price_cents,
+      product_id: product.id,
+      name: product.name,
+      price_cents: product.price_cents,
       qty: 1,
     });
 
@@ -314,11 +306,11 @@ export function Shop({ user }: { user: SessionUser }) {
           <section>
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
-                <h1 className="text-2xl font-semibold">Shop</h1>
-                <p className="text-sm text-slate-600">Click any item to view full details.</p>
+                <h1 className="text-2xl font-semibold">{shop.title}</h1>
+                <p className="text-sm text-slate-600">{shop.subtitle}</p>
               </div>
               <div className="text-xs text-slate-500">
-                {filteredProducts.length} / {products.length} shown
+                {common.shownCount(filteredProducts.length, products.length)}
               </div>
             </div>
 
@@ -326,7 +318,7 @@ export function Shop({ user }: { user: SessionUser }) {
               <input
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
-                placeholder="Search items by name, category, description, tag, or price..."
+                placeholder={shop.searchPlaceholder}
                 className="w-full rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-slate-400"
               />
             </div>
@@ -334,81 +326,86 @@ export function Shop({ user }: { user: SessionUser }) {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {products.length === 0 ? (
                 <Card className="p-5 text-sm text-slate-600 sm:col-span-2 lg:col-span-3">
-                  No products available yet.
+                  {shop.noProductsAvailable}
                 </Card>
               ) : filteredProducts.length === 0 ? (
                 <Card className="p-5 text-sm text-slate-600 sm:col-span-2 lg:col-span-3">
-                  No products match your search.
+                  {shop.noProductsMatch}
                 </Card>
               ) : (
-                filteredProducts.map((p) => (
-                <Card
-                  key={p.id}
-                  className="cursor-pointer p-4 transition hover:-translate-y-0.5 hover:shadow-lg"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setSelectedProduct(p)}
-                    className="w-full text-left"
+                filteredProducts.map((product) => (
+                  <Card
+                    key={product.id}
+                    className="cursor-pointer p-4 transition hover:-translate-y-0.5 hover:shadow-lg"
                   >
-                    <div className="aspect-[4/3] w-full overflow-hidden rounded-2xl bg-slate-100">
-                      {p.image_url ? (
-                        <img
-                          src={p.image_url}
-                          alt={p.name}
-                          className="h-full w-full rounded-2xl object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-sm text-slate-400">
-                          No image
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProduct(product)}
+                      className="w-full text-left"
+                    >
+                      <div className="aspect-[4/3] w-full overflow-hidden rounded-2xl bg-slate-100">
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="h-full w-full rounded-2xl object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                            {common.noImage}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-3 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold">{product.name}</div>
+                          <div className="text-xs text-slate-500">
+                            {product.category ?? shop.itemDetails}
+                          </div>
                         </div>
-                      )}
-                    </div>
-
-                    <div className="mt-3 flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold">{p.name}</div>
-                        <div className="text-xs text-slate-500">{p.category ?? "Item details"}</div>
+                        <div className="text-sm font-semibold">
+                          {formatCurrency(product.price_cents)}
+                        </div>
                       </div>
-                      <div className="text-sm font-semibold">{money(p.price_cents)}</div>
-                    </div>
 
-                    {p.properties?.length ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {p.properties.slice(0, 3).map((property) => (
-                          <span
-                            key={property}
-                            className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700"
-                          >
-                            {property}
-                          </span>
-                        ))}
+                      {product.properties?.length ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {product.properties.slice(0, 3).map((property) => (
+                            <span
+                              key={property}
+                              className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700"
+                            >
+                              {property}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </button>
+
+                    <button
+                      disabled={addingId === product.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void addProductToList(product);
+                      }}
+                      className="mt-3 w-full rounded-2xl bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-60"
+                    >
+                      {addingId === product.id ? common.adding : shop.addToCart}
+                    </button>
+
+                    {selectedListId ? (
+                      <div className="mt-2 text-xs text-slate-500">
+                        {shop.addsTo}{" "}
+                        <span className="font-medium">
+                          {lists.find((list) => list.id === selectedListId)?.name ??
+                            shop.selectedListFallback}
+                        </span>
                       </div>
-                    ) : null}
-                  </button>
-
-                  <button
-                    disabled={addingId === p.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void addProductToList(p);
-                    }}
-                    className="mt-3 w-full rounded-2xl bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-60"
-                  >
-                    {addingId === p.id ? "Adding…" : "Add to cart"}
-                  </button>
-
-                  {selectedListId ? (
-                    <div className="mt-2 text-xs text-slate-500">
-                      Adds to:{" "}
-                      <span className="font-medium">
-                        {lists.find((l) => l.id === selectedListId)?.name ?? "Selected list"}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="mt-2 text-xs text-slate-500">Create a list to start adding items.</div>
-                  )}
-                </Card>
+                    ) : (
+                      <div className="mt-2 text-xs text-slate-500">{shop.createListToStart}</div>
+                    )}
+                  </Card>
                 ))
               )}
             </div>
@@ -416,21 +413,21 @@ export function Shop({ user }: { user: SessionUser }) {
 
           <aside className="space-y-4">
             <Card className="p-5">
-              <div className="text-sm font-semibold">Your lists</div>
+              <div className="text-sm font-semibold">{shop.yourLists}</div>
 
               <div className="mt-3">
-                <div className="text-xs font-medium text-slate-600">Selected list</div>
+                <div className="text-xs font-medium text-slate-600">{shop.selectedList}</div>
                 <select
                   value={selectedListId ?? ""}
                   onChange={(e) => setSelectedListId(e.target.value)}
                   className="mt-2 w-full rounded-2xl border px-3 py-2 text-sm"
                 >
                   <option value="" disabled>
-                    Select a list…
+                    {shop.selectAList}
                   </option>
-                  {lists.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
+                  {lists.map((list) => (
+                    <option key={list.id} value={list.id}>
+                      {list.name}
                     </option>
                   ))}
                 </select>
@@ -441,27 +438,27 @@ export function Shop({ user }: { user: SessionUser }) {
                   value={listName}
                   onChange={(e) => setListName(e.target.value)}
                   className="w-full rounded-2xl border px-3 py-2 text-sm"
-                  placeholder="List name"
+                  placeholder={shop.listName}
                 />
                 <button
                   disabled={busy}
-                  onClick={createList}
+                  onClick={() => void createList()}
                   className="rounded-2xl bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-60"
                 >
-                  Add
+                  {common.add}
                 </button>
               </div>
 
               <div className="mt-4 space-y-2">
                 {lists.length === 0 ? (
-                  <div className="text-sm text-slate-600">No lists yet.</div>
+                  <div className="text-sm text-slate-600">{shop.noListsYet}</div>
                 ) : (
-                  lists.map((l) => {
-                    const isSelected = l.id === selectedListId;
+                  lists.map((list) => {
+                    const isSelected = list.id === selectedListId;
 
                     return (
                       <div
-                        key={l.id}
+                        key={list.id}
                         className={`rounded-2xl border px-3 py-3 transition ${
                           isSelected ? "border-slate-900 bg-slate-50" : "hover:bg-slate-50"
                         }`}
@@ -469,21 +466,21 @@ export function Shop({ user }: { user: SessionUser }) {
                         <div className="flex items-start gap-2">
                           <button
                             type="button"
-                            onClick={() => setSelectedListId(l.id)}
+                            onClick={() => setSelectedListId(list.id)}
                             className="min-w-0 flex-1 text-left"
                           >
-                            <div className="font-medium">{l.name}</div>
+                            <div className="font-medium">{list.name}</div>
                             <div className="text-xs text-slate-500">
-                              {new Date(l.created_at).toLocaleString()}
+                              {formatDateTime(list.created_at)}
                             </div>
                           </button>
 
                           <button
                             type="button"
-                            aria-label={`Delete ${l.name}`}
-                            title="Delete list"
-                            disabled={deletingListId === l.id}
-                            onClick={() => void deleteList(l.id)}
+                            aria-label={common.deleteListAria(list.name)}
+                            title={shop.deleteListTitle}
+                            disabled={deletingListId === list.id}
+                            onClick={() => void deleteList(list.id)}
                             className="rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 transition hover:bg-red-100 disabled:opacity-60"
                           >
                             <svg
@@ -502,10 +499,10 @@ export function Shop({ user }: { user: SessionUser }) {
                         </div>
 
                         <Link
-                          to={`/lists/${l.id}`}
+                          to={`/lists/${list.id}`}
                           className="mt-3 inline-flex text-xs font-medium text-slate-600 underline-offset-2 hover:underline"
                         >
-                          Open full list
+                          {shop.openFullList}
                         </Link>
                       </div>
                     );
@@ -517,20 +514,22 @@ export function Shop({ user }: { user: SessionUser }) {
             <Card className="p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold">List items</div>
+                  <div className="text-sm font-semibold">{shop.listItems}</div>
                   <div className="mt-1 text-xs text-slate-500">
-                    {selectedList ? selectedList.name : "Choose a list to view its items."}
+                    {selectedList ? selectedList.name : shop.chooseListToView}
                   </div>
                 </div>
                 {selectedList ? (
-                  <div className="text-sm font-semibold text-slate-900">{money(selectedListTotal)}</div>
+                  <div className="text-sm font-semibold text-slate-900">
+                    {formatCurrency(selectedListTotal)}
+                  </div>
                 ) : null}
               </div>
 
               {!selectedList ? (
-                <div className="mt-4 text-sm text-slate-600">No list selected.</div>
+                <div className="mt-4 text-sm text-slate-600">{shop.noListSelected}</div>
               ) : listItems.length === 0 ? (
-                <div className="mt-4 text-sm text-slate-600">This list is empty.</div>
+                <div className="mt-4 text-sm text-slate-600">{shop.listIsEmpty}</div>
               ) : (
                 <div className="mt-4 space-y-3">
                   {listItems.map((item) => {
@@ -540,16 +539,18 @@ export function Shop({ user }: { user: SessionUser }) {
                       <div key={item.id} className="rounded-2xl border border-slate-200 px-3 py-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-medium text-slate-900">{item.name}</div>
+                            <div className="truncate text-sm font-medium text-slate-900">
+                              {item.name}
+                            </div>
                             <div className="mt-1 text-xs text-slate-500">
-                              {money(item.price_cents)} each
+                              {formatCurrency(item.price_cents)} {shop.each}
                             </div>
                           </div>
                           <div className="text-right">
                             <div className="text-sm font-semibold text-slate-900">
-                              {money(item.price_cents * item.qty)}
+                              {formatCurrency(item.price_cents * item.qty)}
                             </div>
-                            <div className="mt-1 text-xs text-slate-500">{item.qty} in list</div>
+                            <div className="mt-1 text-xs text-slate-500">{shop.inList(item.qty)}</div>
                           </div>
                         </div>
 
@@ -561,7 +562,7 @@ export function Shop({ user }: { user: SessionUser }) {
                               onClick={() => void updateListItemQty(item, item.qty - 1)}
                               className="px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
                             >
-                              −
+                              -
                             </button>
                             <div className="min-w-[3rem] px-3 text-center text-sm font-semibold text-slate-900">
                               {item.qty}
@@ -578,8 +579,8 @@ export function Shop({ user }: { user: SessionUser }) {
 
                           <button
                             type="button"
-                            aria-label={`Remove ${item.name}`}
-                            title="Remove item"
+                            aria-label={common.removeItemAria(item.name)}
+                            title={copy.listDetail.remove}
                             disabled={isPending}
                             onClick={() => void removeListItem(item.id)}
                             className="rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 transition hover:bg-red-100 disabled:opacity-60"
@@ -620,14 +621,16 @@ export function Shop({ user }: { user: SessionUser }) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-semibold text-slate-900">{selectedProduct.name}</h2>
-                <div className="mt-2 text-lg font-semibold text-slate-900">{money(selectedProduct.price_cents)}</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900">
+                  {formatCurrency(selectedProduct.price_cents)}
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedProduct(null)}
                 className="rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-700"
               >
-                Close
+                {shop.close}
               </button>
             </div>
 
@@ -641,7 +644,7 @@ export function Shop({ user }: { user: SessionUser }) {
                   />
                 ) : (
                   <div className="flex min-h-[320px] items-center justify-center text-sm text-slate-400">
-                    No image available
+                    {common.noImageAvailable}
                   </div>
                 )}
               </div>
@@ -649,7 +652,7 @@ export function Shop({ user }: { user: SessionUser }) {
               <div>
                 {selectedProduct.properties?.length ? (
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">Properties</div>
+                    <div className="text-sm font-semibold text-slate-900">{common.properties}</div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {selectedProduct.properties.map((property) => (
                         <span
@@ -663,9 +666,9 @@ export function Shop({ user }: { user: SessionUser }) {
                   </div>
                 ) : null}
 
-                <div className="mt-5 text-sm font-semibold text-slate-900">Description</div>
+                <div className="mt-5 text-sm font-semibold text-slate-900">{common.description}</div>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
-                  {selectedProduct.description?.trim() || "No description added yet."}
+                  {selectedProduct.description?.trim() || common.noDescriptionYet}
                 </p>
 
                 <button
@@ -674,7 +677,7 @@ export function Shop({ user }: { user: SessionUser }) {
                   onClick={() => void addProductToList(selectedProduct)}
                   className="mt-6 w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm text-white disabled:opacity-60"
                 >
-                  {addingId === selectedProduct.id ? "Adding…" : "Add to cart"}
+                  {addingId === selectedProduct.id ? common.adding : shop.addToCart}
                 </button>
               </div>
             </div>

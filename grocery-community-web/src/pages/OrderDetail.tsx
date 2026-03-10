@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card } from "../components/Card";
+import { useAppSettings } from "../lib/app-settings";
 import type { SessionUser } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 
@@ -51,6 +52,10 @@ type OrderMessage = {
 export function OrderDetail({ user }: { user: SessionUser }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { copy, formatCurrency, formatDateTime, formatStatus, formatStoredMessage } =
+    useAppSettings();
+  const common = copy.common;
+  const page = copy.orderDetail;
 
   const [order, setOrder] = useState<Order | null>(null);
   const [items, setItems] = useState<OrderItem[]>([]);
@@ -61,14 +66,10 @@ export function OrderDetail({ user }: { user: SessionUser }) {
   const [sending, setSending] = useState(false);
   const [deletingChat, setDeletingChat] = useState(false);
 
-  const money = useMemo(
-    () => (cents: number) =>
-      new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(cents / 100),
-    []
+  const shippingCents = useMemo(
+    () => (order ? Math.max(0, order.total_cents - order.subtotal_cents - order.tax_cents) : 0),
+    [order]
   );
-  const shippingCents = order
-    ? Math.max(0, order.total_cents - order.subtotal_cents - order.tax_cents)
-    : 0;
 
   async function loadAll() {
     if (!id) return;
@@ -92,8 +93,8 @@ export function OrderDetail({ user }: { user: SessionUser }) {
 
     const addressIds = new Set<string>();
     if (orderData?.address_id) addressIds.add(orderData.address_id);
-    for (const m of msgData ?? []) {
-      if (m.address_id) addressIds.add(m.address_id);
+    for (const message of msgData ?? []) {
+      if (message.address_id) addressIds.add(message.address_id);
     }
 
     if (addressIds.size > 0) {
@@ -102,9 +103,9 @@ export function OrderDetail({ user }: { user: SessionUser }) {
         .select("*")
         .in("id", Array.from(addressIds));
 
-      const map: Record<string, Address> = {};
-      for (const a of addresses ?? []) map[a.id] = a as Address;
-      setAddressMap(map);
+      const nextMap: Record<string, Address> = {};
+      for (const address of addresses ?? []) nextMap[address.id] = address as Address;
+      setAddressMap(nextMap);
     } else {
       setAddressMap({});
     }
@@ -176,15 +177,12 @@ export function OrderDetail({ user }: { user: SessionUser }) {
   async function deleteChat() {
     if (!id) return;
 
-    const ok = window.confirm("Are you sure you want to delete this chat?");
+    const ok = window.confirm(page.deleteConfirm);
     if (!ok) return;
 
     setDeletingChat(true);
 
-    const { error: messageError } = await supabase
-      .from("order_messages")
-      .delete()
-      .eq("order_id", id);
+    const { error: messageError } = await supabase.from("order_messages").delete().eq("order_id", id);
 
     if (messageError) {
       setDeletingChat(false);
@@ -192,10 +190,7 @@ export function OrderDetail({ user }: { user: SessionUser }) {
       return;
     }
 
-    const { error: itemError } = await supabase
-      .from("order_items")
-      .delete()
-      .eq("order_id", id);
+    const { error: itemError } = await supabase.from("order_items").delete().eq("order_id", id);
 
     if (itemError) {
       setDeletingChat(false);
@@ -221,21 +216,23 @@ export function OrderDetail({ user }: { user: SessionUser }) {
 
   function renderAddress(addressId: string | null | undefined) {
     if (!addressId) return null;
-    const a = addressMap[addressId];
-    if (!a) return null;
+    const address = addressMap[addressId];
+    if (!address) return null;
 
     return (
       <div className="rounded-2xl border bg-slate-50 px-4 py-3 text-sm">
-        <div className="font-medium">Delivery address</div>
-        <div className="mt-2">{a.recipient_name ?? "No recipient"}</div>
-        <div>{a.street_1}</div>
-        {a.street_2 ? <div>{a.street_2}</div> : null}
+        <div className="font-medium">{common.deliveryAddress}</div>
+        <div className="mt-2">{address.recipient_name ?? common.noRecipient}</div>
+        <div>{address.street_1}</div>
+        {address.street_2 ? <div>{address.street_2}</div> : null}
         <div>
-          {a.city}
-          {a.state ? `, ${a.state}` : ""} {a.postal_code ?? ""}
+          {address.city}
+          {address.state ? `, ${address.state}` : ""} {address.postal_code ?? ""}
         </div>
-        <div>{a.country}</div>
-        {a.delivery_notes ? <div className="mt-2 text-slate-500">Notes: {a.delivery_notes}</div> : null}
+        <div>{address.country}</div>
+        {address.delivery_notes ? (
+          <div className="mt-2 text-slate-500">{common.notesValue(address.delivery_notes)}</div>
+        ) : null}
       </div>
     );
   }
@@ -245,35 +242,43 @@ export function OrderDetail({ user }: { user: SessionUser }) {
       <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <div className="space-y-4">
           <Card className="p-5">
-            <div className="text-sm font-semibold">Order summary</div>
+            <div className="text-sm font-semibold">{page.orderSummary}</div>
             {order ? (
               <div className="mt-3 text-sm text-slate-700">
-                <div>Status: {order.status}</div>
-                <div className="mt-1">Placed: {new Date(order.created_at).toLocaleString()}</div>
+                <div>
+                  {common.status}: {formatStatus(order.status)}
+                </div>
+                <div className="mt-1">
+                  {common.placed}: {formatDateTime(order.created_at)}
+                </div>
                 <div className="mt-4 space-y-2">
-                  {items.map((it) => (
-                    <div key={it.id} className="flex items-center justify-between">
-                      <span>{it.name} × {it.qty}</span>
-                      <span className="font-medium">{money(it.price_cents * it.qty)}</span>
+                  {items.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between">
+                      <span>
+                        {item.name} x {item.qty}
+                      </span>
+                      <span className="font-medium">
+                        {formatCurrency(item.price_cents * item.qty)}
+                      </span>
                     </div>
                   ))}
                 </div>
                 <div className="mt-4 space-y-2 border-t pt-4">
                   <div className="flex items-center justify-between">
-                    <span>Subtotal</span>
-                    <span>{money(order.subtotal_cents)}</span>
+                    <span>{common.subtotal}</span>
+                    <span>{formatCurrency(order.subtotal_cents)}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span>Tax</span>
-                    <span>{money(order.tax_cents)}</span>
+                    <span>{common.tax}</span>
+                    <span>{formatCurrency(order.tax_cents)}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span>Shipping</span>
-                    <span>{money(shippingCents)}</span>
+                    <span>{common.shipping}</span>
+                    <span>{formatCurrency(shippingCents)}</span>
                   </div>
                   <div className="flex items-center justify-between font-semibold">
-                    <span>Total</span>
-                    <span>{money(order.total_cents)}</span>
+                    <span>{common.total}</span>
+                    <span>{formatCurrency(order.total_cents)}</span>
                   </div>
                 </div>
               </div>
@@ -281,71 +286,73 @@ export function OrderDetail({ user }: { user: SessionUser }) {
           </Card>
 
           <Card className="p-5">
-            <div className="text-sm font-semibold">Selected delivery address</div>
+            <div className="text-sm font-semibold">{page.selectedDeliveryAddress}</div>
             <div className="mt-3">{renderAddress(order?.address_id)}</div>
           </Card>
         </div>
 
         <Card className="p-5">
-          <div className="text-sm font-semibold">Order chat</div>
+          <div className="text-sm font-semibold">{page.orderChat}</div>
 
           {order?.admin_deleted_at ? (
             <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-4">
-              <div className="text-sm font-semibold text-amber-900">
-                This chat was deleted by admin.
-              </div>
-              <p className="mt-1 text-sm text-amber-800">
-                You can still review it here. Do you want to delete it too?
-              </p>
+              <div className="text-sm font-semibold text-amber-900">{page.adminDeletedTitle}</div>
+              <p className="mt-1 text-sm text-amber-800">{page.adminDeletedBody}</p>
               <button
                 type="button"
-                onClick={deleteChat}
+                onClick={() => void deleteChat()}
                 disabled={deletingChat}
                 className="mt-3 rounded-2xl border border-red-300 bg-red-100 px-4 py-2 text-sm font-semibold text-red-900 hover:bg-red-200 disabled:opacity-60"
               >
-                {deletingChat ? "Deleting..." : "Delete this chat"}
+                {deletingChat ? common.deleting : page.deleteThisChat}
               </button>
             </div>
           ) : null}
 
           <div className="mt-4 space-y-3">
-            {messages.map((m) => (
-              <div key={m.id} className="rounded-2xl border px-4 py-3">
-                <div className="flex items-center gap-2 text-xs">
-                  <span
-                    className={`rounded-full px-2 py-0.5 font-semibold ${
-                      m.sender_user_id === user.id
-                        ? "bg-slate-200 text-slate-800"
-                        : "bg-blue-100 text-blue-900"
-                    }`}
-                  >
-                    {m.sender_user_id === user.id ? "You" : "Admin"}
-                  </span>
-                  <span className="text-slate-600">
-                    {new Date(m.created_at).toLocaleString()}
-                  </span>
-                </div>
-
-                <div className="mt-2">
-                  {m.message_type === "address" ? renderAddress(m.address_id) : null}
-                  {m.message_type !== "address" ? (
-                    <div className="text-sm text-slate-800">{m.body}</div>
-                  ) : null}
-                </div>
+            {messages.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-600">
+                {page.noMessagesYet}
               </div>
-            ))}
+            ) : (
+              messages.map((message) => (
+                <div key={message.id} className="rounded-2xl border px-4 py-3">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span
+                      className={`rounded-full px-2 py-0.5 font-semibold ${
+                        message.sender_user_id === user.id
+                          ? "bg-slate-200 text-slate-800"
+                          : "bg-blue-100 text-blue-900"
+                      }`}
+                    >
+                      {message.sender_user_id === user.id ? common.you : common.admin}
+                    </span>
+                    <span className="text-slate-600">{formatDateTime(message.created_at)}</span>
+                  </div>
+
+                  <div className="mt-2">
+                    {message.message_type === "address" ? renderAddress(message.address_id) : null}
+                    {message.message_type !== "address" ? (
+                      <div className="text-sm text-slate-800">
+                        {formatStoredMessage(message.message_type, message.body)}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           <div className="mt-5">
             <div className="mb-2 flex flex-wrap gap-2">
-              {savedAddresses.map((a) => (
+              {savedAddresses.map((address) => (
                 <button
-                  key={a.id}
-                  onClick={() => sendAddress(a.id)}
+                  key={address.id}
+                  onClick={() => void sendAddress(address.id)}
                   className="rounded-full border px-3 py-2 text-xs hover:bg-slate-50"
-                  title="Send this address into chat"
+                  title={page.sendAddressTitle}
                 >
-                  📍 {a.label ?? "Address"}
+                  {page.addressChip(address.label ?? common.address)}
                 </button>
               ))}
             </div>
@@ -354,14 +361,14 @@ export function OrderDetail({ user }: { user: SessionUser }) {
               <input
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
-                placeholder="Type a message..."
+                placeholder={page.typeMessage}
                 className="w-full rounded-2xl border px-3 py-2 text-sm"
               />
               <button
                 disabled={sending}
                 className="rounded-2xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
               >
-                Send
+                {sending ? common.sending : common.send}
               </button>
             </form>
           </div>
