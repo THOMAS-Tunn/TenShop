@@ -7,7 +7,7 @@ import { Auth } from "./pages/Auth";
 import { Shop } from "./pages/Shop";
 import { Community } from "./pages/Community";
 import { Chat } from "./pages/Chat";
-import { CartDetail } from "./pages/CartDetail";
+import { Cart } from "./pages/Cart";
 import { Profile } from "./pages/Profile";
 import { OrderDetail } from "./pages/OrderDetail";
 import { Admin } from "./pages/Admin";
@@ -25,9 +25,9 @@ function RequireAuth({
   return children(user);
 }
 
-function LegacyListRedirect() {
+function LegacyCartRedirect() {
   const { id } = useParams();
-  return <Navigate to={id ? `/carts/${id}` : "/shop"} replace />;
+  return <Navigate to={id ? `/cart?selected=${encodeURIComponent(id)}` : "/cart"} replace />;
 }
 
 export default function App() {
@@ -133,14 +133,15 @@ export default function App() {
           }
         />
         <Route
-          path="/carts/:id"
+          path="/cart"
           element={
             <RequireAuth user={user}>
-              {(u) => <CartDetail user={u} />}
+              {(u) => <Cart user={u} />}
             </RequireAuth>
           }
         />
-        <Route path="/lists/:id" element={<LegacyListRedirect />} />
+        <Route path="/carts/:id" element={<LegacyCartRedirect />} />
+        <Route path="/lists/:id" element={<LegacyCartRedirect />} />
         <Route
           path="/orders/:id"
           element={

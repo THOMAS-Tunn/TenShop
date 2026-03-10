@@ -82,7 +82,7 @@ export function Layout({ user, loading }: { user: SessionUser | null; loading: b
   return (
     <header
       className={clsx(
-        "sticky top-0 z-50 backdrop-blur-sm transition-colors duration-300",
+        "sticky top-0 z-50 backdrop-blur-xl transition-colors duration-300",
         headerClasses
       )}
     >
@@ -141,6 +141,23 @@ export function Layout({ user, loading }: { user: SessionUser | null; loading: b
             </>
           ) : user ? (
             <>
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-label={copy.shop.yourCarts}
+                  onClick={() => {
+                    setOpenMenu(null);
+                    navigate("/cart");
+                  }}
+                  className={clsx(
+                    "inline-flex h-11 w-11 items-center justify-center rounded-full border text-base transition-colors duration-300",
+                    iconButtonClasses
+                  )}
+                >
+                  <i className="fa-solid fa-cart-shopping" aria-hidden="true" />
+                </button>
+              </div>
+
               <div className="relative">
                 <button
                   type="button"

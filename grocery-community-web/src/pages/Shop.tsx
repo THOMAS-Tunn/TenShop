@@ -45,6 +45,7 @@ export function Shop({ user }: { user: SessionUser }) {
   const [lists, setLists] = useState<List[]>([]);
   const [listItems, setListItems] = useState<ListItem[]>([]);
   const [listName, setListName] = useState(shop.defaultCartName);
+  const [listSearch, setListSearch] = useState("");
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
@@ -141,11 +142,19 @@ export function Shop({ user }: { user: SessionUser }) {
     });
   }, [products, productSearch]);
 
+  const filteredLists = useMemo(() => {
+    const query = listSearch.trim().toLowerCase();
+    if (!query) return lists;
+
+    return lists.filter((list) => list.name.toLowerCase().includes(query));
+  }, [listSearch, lists]);
+
   async function createList() {
+    const nextName = listName.trim() || shop.defaultCartName;
     setBusy(true);
     const { data, error } = await supabase
       .from("shopping_lists")
-      .insert({ user_id: user.id, name: listName })
+      .insert({ user_id: user.id, name: nextName })
       .select("id")
       .single();
     setBusy(false);
@@ -157,6 +166,7 @@ export function Shop({ user }: { user: SessionUser }) {
 
     await loadLists();
     if (data?.id) setSelectedListId(data.id);
+    setListName(shop.defaultCartName);
   }
 
   async function deleteList(listId: string) {
@@ -415,24 +425,30 @@ export function Shop({ user }: { user: SessionUser }) {
 
           <aside className="space-y-4">
             <Card className="p-5">
-              <div className="text-sm font-semibold">{shop.yourCarts}</div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold">{shop.yourCarts}</div>
+                <Link
+                  to={selectedListId ? `/cart?selected=${selectedListId}` : "/cart"}
+                  className="text-xs font-medium text-slate-600 underline-offset-2 hover:underline"
+                >
+                  {shop.openFullCart}
+                </Link>
+              </div>
+
+              <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                <div className="text-xs font-medium text-slate-600">{shop.selectedCart}</div>
+                <div className="mt-1 text-sm font-semibold text-slate-900">
+                  {selectedList ? selectedList.name : shop.selectACart}
+                </div>
+              </div>
 
               <div className="mt-3">
-                <div className="text-xs font-medium text-slate-600">{shop.selectedCart}</div>
-                <select
-                  value={selectedListId ?? ""}
-                  onChange={(e) => setSelectedListId(e.target.value)}
-                  className="mt-2 w-full rounded-2xl border px-3 py-2 text-sm"
-                >
-                  <option value="" disabled>
-                    {shop.selectACart}
-                  </option>
-                  {lists.map((list) => (
-                    <option key={list.id} value={list.id}>
-                      {list.name}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  value={listSearch}
+                  onChange={(e) => setListSearch(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-slate-400"
+                  placeholder={shop.searchCartsPlaceholder}
+                />
               </div>
 
               <div className="mt-3 flex gap-2">
@@ -451,11 +467,13 @@ export function Shop({ user }: { user: SessionUser }) {
                 </button>
               </div>
 
-              <div className="mt-4 space-y-2">
+              <div className="mt-4 max-h-[22rem] space-y-2 overflow-y-auto pr-1">
                 {lists.length === 0 ? (
                   <div className="text-sm text-slate-600">{shop.noCartsYet}</div>
+                ) : filteredLists.length === 0 ? (
+                  <div className="text-sm text-slate-600">{shop.noCartsMatch}</div>
                 ) : (
-                  lists.map((list) => {
+                  filteredLists.map((list) => {
                     const isSelected = list.id === selectedListId;
 
                     return (
@@ -501,7 +519,7 @@ export function Shop({ user }: { user: SessionUser }) {
                         </div>
 
                         <Link
-                          to={`/carts/${list.id}`}
+                          to={`/cart?selected=${list.id}`}
                           className="mt-3 inline-flex text-xs font-medium text-slate-600 underline-offset-2 hover:underline"
                         >
                           {shop.openFullCart}
@@ -533,7 +551,7 @@ export function Shop({ user }: { user: SessionUser }) {
               ) : listItems.length === 0 ? (
                 <div className="mt-4 text-sm text-slate-600">{shop.cartIsEmpty}</div>
               ) : (
-                <div className="mt-4 space-y-3">
+                <div className="mt-4 max-h-[44rem] space-y-3 overflow-y-auto pr-1">
                   {listItems.map((item) => {
                     const isPending = pendingItemAction?.id === item.id;
 
