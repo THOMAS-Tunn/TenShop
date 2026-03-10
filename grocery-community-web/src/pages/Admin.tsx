@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../components/Card";
+import { ProductImageField } from "../components/ProductImageField";
+import { uploadProductImage } from "../lib/imagekit";
 import { supabase } from "../lib/supabase";
 
 type Product = {
@@ -101,6 +103,8 @@ export function Admin() {
   const [replyBody, setReplyBody] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
+  const [uploadingNewImage, setUploadingNewImage] = useState(false);
+  const [uploadingEditImage, setUploadingEditImage] = useState(false);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isAddressOpen, setIsAddressOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"chat" | "items">("chat");
@@ -460,6 +464,19 @@ export function Admin() {
     await loadProducts();
   }
 
+  async function handleNewImageUpload(file: File) {
+    setUploadingNewImage(true);
+
+    try {
+      const nextUrl = await uploadProductImage(file);
+      setImageUrl(nextUrl);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Image upload failed.");
+    } finally {
+      setUploadingNewImage(false);
+    }
+  }
+
   function startEditing(item: Product) {
     setEditingId(item.id);
     setEditName(item.name);
@@ -497,6 +514,19 @@ export function Admin() {
 
     cancelEditing();
     await loadProducts();
+  }
+
+  async function handleEditImageUpload(file: File) {
+    setUploadingEditImage(true);
+
+    try {
+      const nextUrl = await uploadProductImage(file);
+      setEditImageUrl(nextUrl);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Image upload failed.");
+    } finally {
+      setUploadingEditImage(false);
+    }
   }
 
   async function deleteItem(id: string) {
@@ -793,17 +823,14 @@ export function Admin() {
                   />
                 </div>
 
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Image URL
-                  </label>
-                  <input
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-2 outline-none transition focus:border-slate-400"
-                    placeholder="https://..."
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                  />
-                </div>
+                <ProductImageField
+                  label="Product image"
+                  value={imageUrl}
+                  previewAlt={name || "New product image"}
+                  uploading={uploadingNewImage}
+                  onChange={setImageUrl}
+                  onUpload={handleNewImageUpload}
+                />
 
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -890,46 +917,37 @@ export function Admin() {
                       <div key={item.id} className="rounded-3xl border border-slate-200 px-4 py-4">
                         {isEditing ? (
                           <div className="grid gap-4">
-                            <div className="grid gap-4 md:grid-cols-[140px_1fr]">
-                              <div className="aspect-square overflow-hidden rounded-2xl bg-slate-100">
-                                {editImageUrl ? (
-                                  <img
-                                    src={editImageUrl}
-                                    alt={editName || item.name}
-                                    className="h-full w-full object-cover"
-                                  />
-                                ) : null}
-                              </div>
+                            <ProductImageField
+                              label="Product image"
+                              value={editImageUrl}
+                              previewAlt={editName || item.name}
+                              uploading={uploadingEditImage}
+                              onChange={setEditImageUrl}
+                              onUpload={handleEditImageUpload}
+                            />
 
-                              <div className="grid gap-3">
-                                <input
-                                  className="w-full rounded-2xl border border-slate-200 px-4 py-2"
-                                  value={editName}
-                                  onChange={(e) => setEditName(e.target.value)}
-                                  placeholder="Product name"
-                                />
-                                <input
-                                  className="w-full rounded-2xl border border-slate-200 px-4 py-2"
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={editPrice}
-                                  onChange={(e) => setEditPrice(Number(e.target.value))}
-                                  placeholder="Price"
-                                />
-                                <input
-                                  className="w-full rounded-2xl border border-slate-200 px-4 py-2"
-                                  value={editImageUrl}
-                                  onChange={(e) => setEditImageUrl(e.target.value)}
-                                  placeholder="Image URL"
-                                />
-                                <input
-                                  className="w-full rounded-2xl border border-slate-200 px-4 py-2"
-                                  value={editPropertiesInput}
-                                  onChange={(e) => setEditPropertiesInput(e.target.value)}
-                                  placeholder="Fresh, Organic, 1 lb"
-                                />
-                              </div>
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <input
+                                className="w-full rounded-2xl border border-slate-200 px-4 py-2"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                placeholder="Product name"
+                              />
+                              <input
+                                className="w-full rounded-2xl border border-slate-200 px-4 py-2"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={editPrice}
+                                onChange={(e) => setEditPrice(Number(e.target.value))}
+                                placeholder="Price"
+                              />
+                              <input
+                                className="w-full rounded-2xl border border-slate-200 px-4 py-2 md:col-span-2"
+                                value={editPropertiesInput}
+                                onChange={(e) => setEditPropertiesInput(e.target.value)}
+                                placeholder="Fresh, Organic, 1 lb"
+                              />
                             </div>
 
                             <textarea

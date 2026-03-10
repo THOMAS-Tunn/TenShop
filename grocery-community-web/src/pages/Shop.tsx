@@ -34,6 +34,7 @@ type PendingItemAction = {
 
 export function Shop({ user }: { user: SessionUser }) {
   const [products, setProducts] = useState<Product[]>([]);
+  const [productSearch, setProductSearch] = useState("");
   const [lists, setLists] = useState<List[]>([]);
   const [listItems, setListItems] = useState<ListItem[]>([]);
   const [listName, setListName] = useState("My List");
@@ -121,6 +122,25 @@ export function Shop({ user }: { user: SessionUser }) {
       ),
     []
   );
+
+  const filteredProducts = useMemo(() => {
+    const query = productSearch.trim().toLowerCase();
+    if (!query) return products;
+
+    return products.filter((product) => {
+      const haystack = [
+        product.name,
+        product.category ?? "",
+        product.description ?? "",
+        (product.properties ?? []).join(" "),
+        (product.price_cents / 100).toFixed(2),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [products, productSearch]);
 
   async function createList() {
     setBusy(true);
@@ -297,10 +317,31 @@ export function Shop({ user }: { user: SessionUser }) {
                 <h1 className="text-2xl font-semibold">Shop</h1>
                 <p className="text-sm text-slate-600">Click any item to view full details.</p>
               </div>
+              <div className="text-xs text-slate-500">
+                {filteredProducts.length} / {products.length} shown
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <input
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                placeholder="Search items by name, category, description, tag, or price..."
+                className="w-full rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-slate-400"
+              />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {products.map((p) => (
+              {products.length === 0 ? (
+                <Card className="p-5 text-sm text-slate-600 sm:col-span-2 lg:col-span-3">
+                  No products available yet.
+                </Card>
+              ) : filteredProducts.length === 0 ? (
+                <Card className="p-5 text-sm text-slate-600 sm:col-span-2 lg:col-span-3">
+                  No products match your search.
+                </Card>
+              ) : (
+                filteredProducts.map((p) => (
                 <Card
                   key={p.id}
                   className="cursor-pointer p-4 transition hover:-translate-y-0.5 hover:shadow-lg"
@@ -368,7 +409,8 @@ export function Shop({ user }: { user: SessionUser }) {
                     <div className="mt-2 text-xs text-slate-500">Create a list to start adding items.</div>
                   )}
                 </Card>
-              ))}
+                ))
+              )}
             </div>
           </section>
 
