@@ -876,7 +876,7 @@ export function Admin() {
                         className="min-w-0 flex-1 text-left"
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <div className="truncate text-[15px] font-semibold text-white">
+                          <div className="truncate text-[15px] font-semibold">
                             {getCustomerLabel(thread)}
                           </div>
                           <div className="shrink-0 text-xs text-slate-400">
