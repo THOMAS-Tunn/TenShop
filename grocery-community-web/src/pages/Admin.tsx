@@ -800,7 +800,7 @@ export function Admin() {
         </div>
 
         <div className="space-y-6">
-          <Card className="overflow-hidden border border-slate-800 bg-[#0b0b0c] p-0 text-white shadow-2xl">
+          <Card className="overflow-hidden border border-slate-800 bg-[#0b0b0c] p-0 shadow-2xl">
             <div className="border-b border-slate-800 px-5 py-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
