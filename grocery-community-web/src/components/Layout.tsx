@@ -4,6 +4,7 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import siteLogo from "../assets/logo.png";
 import { signOut, type SessionUser } from "../lib/auth";
 import { useAppSettings, type Language } from "../lib/app-settings";
+import { useNotice } from "../lib/notices";
 
 type OpenMenu = "user" | "settings" | null;
 
@@ -14,6 +15,7 @@ export function Layout({ user, loading }: { user: SessionUser | null; loading: b
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const { language, setLanguage, theme, setTheme, copy } = useAppSettings();
+  const notice = useNotice();
 
   const layoutCopy = copy.layout;
 
@@ -44,14 +46,14 @@ export function Layout({ user, loading }: { user: SessionUser | null; loading: b
       setOpenMenu(null);
       navigate("/", { replace: true });
     } catch (error: any) {
-      alert(error?.message ?? layoutCopy.signOutFailed);
+      notice.showError(error?.message ?? layoutCopy.signOutFailed);
     }
   }
 
   const headerClasses =
     theme === "dark"
       ? "border-slate-800 bg-slate-950/88"
-      : "border-slate-200/80 bg-white/88";
+      : "border-slate-200 bg-white/88";
 
   const logoRingClasses =
     theme === "dark"
