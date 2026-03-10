@@ -109,6 +109,7 @@ export function Admin() {
   const [chatDateTo, setChatDateTo] = useState("");
   const [chatMinTotal, setChatMinTotal] = useState("");
   const [chatMaxTotal, setChatMaxTotal] = useState("");
+  const [chatFilterOpen, setChatFilterOpen] = useState(false);
 
   const money = useMemo(
     () => (cents: number) =>
@@ -619,6 +620,8 @@ export function Admin() {
   const selectedOrderShippingCents = selectedOrder
     ? Math.max(0, selectedOrder.total_cents - selectedOrder.subtotal_cents - selectedOrder.tax_cents)
     : 0;
+  const hasAdvancedChatFilters =
+    !!chatDateFrom || !!chatDateTo || !!chatMinTotal.trim() || !!chatMaxTotal.trim();
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-10">
@@ -911,91 +914,166 @@ export function Admin() {
           <div className="space-y-6">
             <Card className="overflow-hidden border border-slate-800 bg-[#0b0b0c] p-0 text-white shadow-2xl">
               <div className="border-b border-slate-800 px-5 py-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold">Customer Chats</h2>
-                  <p className="mt-1 text-sm text-slate-300">
-                    Search by customer, order, date, and total amount.
-                  </p>
-                </div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">Customer Chats</h2>
+                    <p className="mt-1 text-sm text-slate-300">
+                      Search by customer name or order, then use filters for date and total.
+                    </p>
+                  </div>
 
-                {!isSelecting ? (
-                  <button
-                    type="button"
-                    onClick={startSelecting}
-                    className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm hover:bg-slate-100"
-                  >
-                    Select
-                  </button>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
+                  {!isSelecting ? (
                     <button
                       type="button"
-                      onClick={cancelSelecting}
+                      onClick={startSelecting}
                       className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm hover:bg-slate-100"
                     >
-                      Cancel
+                      Select
                     </button>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={cancelSelecting}
+                        className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm hover:bg-slate-100"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={markSelectedAsShipped}
+                        className="rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-900 shadow-sm hover:bg-emerald-200"
+                      >
+                        Mark shipped
+                      </button>
+                      <button
+                        type="button"
+                        onClick={hideSelectedChatsForAdmin}
+                        className="rounded-xl border border-red-300 bg-red-100 px-3 py-2 text-xs font-semibold text-red-900 shadow-sm hover:bg-red-200"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="relative mt-4">
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={chatSearch}
+                      onChange={(e) => setChatSearch(e.target.value)}
+                      placeholder="Search customer name or order #..."
+                      className="flex-1 rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 outline-none transition focus:border-slate-500"
+                    />
+
                     <button
                       type="button"
-                      onClick={markSelectedAsShipped}
-                      className="rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-900 shadow-sm hover:bg-emerald-200"
+                      aria-label="Open filters"
+                      aria-expanded={chatFilterOpen}
+                      onClick={() => setChatFilterOpen((prev) => !prev)}
+                      className={`inline-flex h-10 w-10 items-center justify-center rounded-full border text-sm transition ${
+                        hasAdvancedChatFilters
+                          ? "border-slate-200 bg-slate-100 text-slate-900"
+                          : "border-slate-700 bg-slate-900/60 text-slate-100 hover:bg-slate-800"
+                      }`}
                     >
-                      Mark shipped
-                    </button>
-                    <button
-                      type="button"
-                      onClick={hideSelectedChatsForAdmin}
-                      className="rounded-xl border border-red-300 bg-red-100 px-3 py-2 text-xs font-semibold text-red-900 shadow-sm hover:bg-red-200"
-                    >
-                      Delete
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        className="h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <path d="M3.75 5.25A.75.75 0 0 1 4.5 4.5h15a.75.75 0 0 1 .53 1.28l-5.72 5.72a.75.75 0 0 0-.22.53v6.72a.75.75 0 0 1-1.06.68l-2.25-1.06a.75.75 0 0 1-.44-.68v-5.66a.75.75 0 0 0-.22-.53L3.97 5.78a.75.75 0 0 1-.22-.53Z" />
+                      </svg>
                     </button>
                   </div>
-                )}
-              </div>
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                <input
-                  value={chatSearch}
-                  onChange={(e) => setChatSearch(e.target.value)}
-                  placeholder="Search name, order #, note..."
-                  className="rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 outline-none transition focus:border-slate-500"
-                />
-                <input
-                  type="date"
-                  value={chatDateFrom}
-                  onChange={(e) => setChatDateFrom(e.target.value)}
-                  className="rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-slate-500"
-                />
-                <input
-                  type="date"
-                  value={chatDateTo}
-                  onChange={(e) => setChatDateTo(e.target.value)}
-                  className="rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-slate-500"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={chatMinTotal}
-                  onChange={(e) => setChatMinTotal(e.target.value)}
-                  placeholder="Min total"
-                  className="rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 outline-none transition focus:border-slate-500"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={chatMaxTotal}
-                  onChange={(e) => setChatMaxTotal(e.target.value)}
-                  placeholder="Max total"
-                  className="rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 outline-none transition focus:border-slate-500"
-                />
-              </div>
+                  {chatFilterOpen ? (
+                    <div className="absolute right-0 z-20 mt-2 w-full max-w-sm rounded-2xl border border-slate-700 bg-[#101012] p-4 shadow-2xl">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-300">
+                        Advanced Filters
+                      </div>
 
-              <div className="mt-2 text-xs text-slate-400">
-                {filteredThreads.length} / {threads.length} chats shown
-              </div>
+                      <div className="mt-3 grid gap-3">
+                        <div>
+                          <label className="mb-1 block text-xs text-slate-400">From date</label>
+                          <input
+                            type="date"
+                            value={chatDateFrom}
+                            onChange={(e) => setChatDateFrom(e.target.value)}
+                            className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-slate-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="mb-1 block text-xs text-slate-400">To date</label>
+                          <input
+                            type="date"
+                            value={chatDateTo}
+                            onChange={(e) => setChatDateTo(e.target.value)}
+                            className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-slate-500"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="mb-1 block text-xs text-slate-400">Min total</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={chatMinTotal}
+                              onChange={(e) => setChatMinTotal(e.target.value)}
+                              placeholder="0.00"
+                              className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 outline-none transition focus:border-slate-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="mb-1 block text-xs text-slate-400">Max total</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={chatMaxTotal}
+                              onChange={(e) => setChatMaxTotal(e.target.value)}
+                              placeholder="999.99"
+                              className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 outline-none transition focus:border-slate-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setChatDateFrom("");
+                            setChatDateTo("");
+                            setChatMinTotal("");
+                            setChatMaxTotal("");
+                          }}
+                          className="rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800"
+                        >
+                          Clear
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setChatFilterOpen(false)}
+                          className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-900 hover:bg-white"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="mt-2 text-xs text-slate-400">
+                  {filteredThreads.length} / {threads.length} chats shown
+                </div>
               </div>
 
               <div className="max-h-[360px] divide-y divide-slate-800 overflow-y-auto">
