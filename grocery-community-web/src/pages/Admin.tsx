@@ -77,6 +77,7 @@ function parseProperties(value: string) {
 export function Admin() {
   const {
     copy,
+    theme,
     formatCurrency,
     formatDateTime,
     formatStatus,
@@ -85,6 +86,7 @@ export function Admin() {
   const common = copy.common;
   const adminCopy = copy.admin;
   const money = formatCurrency;
+  const isDarkTheme = theme === "dark";
 
   const [items, setItems] = useState<Product[]>([]);
   const [name, setName] = useState("");
@@ -158,8 +160,38 @@ export function Admin() {
     if (status === "cancelled") {
       return "bg-red-200 text-red-950 ring-1 ring-red-400";
     }
-    return "bg-white/20 text-white ring-1 ring-white/25";
+    return isDarkTheme
+      ? "bg-white/20 text-white ring-1 ring-white/25"
+      : "bg-slate-200 text-slate-900 ring-1 ring-slate-300";
   }
+
+  const chatListCardClasses = isDarkTheme
+    ? "border border-slate-800 bg-[#0b0b0c] text-white"
+    : "border border-slate-200 bg-white text-slate-900";
+  const chatListHeaderClasses = isDarkTheme
+    ? "border-b border-slate-800"
+    : "border-b border-slate-200 bg-slate-50/80";
+  const chatListSubtitleClasses = isDarkTheme ? "text-slate-300" : "text-slate-600";
+  const chatFilterToggleDefaultClasses = isDarkTheme
+    ? "border-slate-700 bg-slate-900/60 text-slate-100 hover:bg-slate-800"
+    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50";
+  const chatFilterPanelClasses = isDarkTheme
+    ? "border border-slate-700 bg-[#101012]"
+    : "border border-slate-200 bg-white";
+  const chatFilterLabelClasses = isDarkTheme ? "text-slate-400" : "text-slate-600";
+  const chatFilterInputClasses = isDarkTheme
+    ? "w-full rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-slate-500"
+    : "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400";
+  const chatFilterClearClasses = isDarkTheme
+    ? "border-slate-600 text-slate-200 hover:bg-slate-800"
+    : "border-slate-300 text-slate-700 hover:bg-slate-50";
+  const chatFilterDoneClasses = isDarkTheme
+    ? "bg-slate-100 text-slate-900 hover:bg-white"
+    : "bg-slate-900 text-white hover:opacity-90";
+  const chatListMetaClasses = isDarkTheme ? "text-slate-400" : "text-slate-500";
+  const chatListNoteClasses = isDarkTheme ? "text-slate-300" : "text-slate-700";
+  const chatListOrderIdClasses = isDarkTheme ? "text-slate-500" : "text-slate-600";
+  const chatListEmptyClasses = isDarkTheme ? "text-slate-400" : "text-slate-500";
 
   const filteredItems = useMemo(() => {
     const query = itemSearch.trim().toLowerCase();
@@ -1055,12 +1087,14 @@ export function Admin() {
               selectedChatId ? "grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)]" : "grid-cols-1"
             }`}
           >
-            <Card className="flex h-[calc(100vh-12rem)] min-h-[620px] max-h-[860px] flex-col overflow-visible border border-slate-800 bg-[#0b0b0c] p-0 text-white shadow-2xl">
-              <div className="border-b border-slate-800 px-5 py-4">
+            <Card
+              className={`flex h-[calc(100vh-12rem)] min-h-[620px] max-h-[860px] flex-col overflow-visible p-0 shadow-2xl ${chatListCardClasses}`}
+            >
+              <div className={`px-5 py-4 ${chatListHeaderClasses}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold">{adminCopy.customerChats}</h2>
-                    <p className="mt-1 text-sm text-slate-300">
+                    <p className={`mt-1 text-sm ${chatListSubtitleClasses}`}>
                       {adminCopy.customerChatsSubtitle}
                     </p>
                   </div>
@@ -1117,7 +1151,7 @@ export function Admin() {
                       className={`inline-flex h-10 w-10 items-center justify-center rounded-full border text-sm transition ${
                         hasAdvancedChatFilters
                           ? "border-slate-200 bg-slate-100 text-slate-900"
-                          : "border-slate-700 bg-slate-900/60 text-slate-100 hover:bg-slate-800"
+                          : chatFilterToggleDefaultClasses
                       }`}
                     >
                       <svg
@@ -1133,39 +1167,45 @@ export function Admin() {
                   </div>
 
                   {chatFilterOpen ? (
-                    <div className="absolute right-0 z-20 mt-2 w-full max-w-sm rounded-2xl border border-slate-700 bg-[#101012] p-4 shadow-2xl">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-300">
+                    <div
+                      className={`absolute right-0 z-20 mt-2 w-full max-w-sm rounded-2xl p-4 shadow-2xl ${chatFilterPanelClasses}`}
+                    >
+                      <div
+                        className={`text-xs font-semibold uppercase tracking-wide ${
+                          isDarkTheme ? "text-slate-300" : "text-slate-700"
+                        }`}
+                      >
                         {adminCopy.advancedFilters}
                       </div>
 
                       <div className="mt-3 grid gap-3">
                         <div>
-                          <label className="mb-1 block text-xs text-slate-400">
+                          <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
                             {adminCopy.fromDate}
                           </label>
                           <input
                             type="date"
                             value={chatDateFrom}
                             onChange={(e) => setChatDateFrom(e.target.value)}
-                            className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-slate-500"
+                            className={chatFilterInputClasses}
                           />
                         </div>
 
                         <div>
-                          <label className="mb-1 block text-xs text-slate-400">
+                          <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
                             {adminCopy.toDate}
                           </label>
                           <input
                             type="date"
                             value={chatDateTo}
                             onChange={(e) => setChatDateTo(e.target.value)}
-                            className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-slate-500"
+                            className={chatFilterInputClasses}
                           />
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <label className="mb-1 block text-xs text-slate-400">
+                            <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
                               {adminCopy.minTotal}
                             </label>
                             <input
@@ -1175,12 +1215,12 @@ export function Admin() {
                               value={chatMinTotal}
                               onChange={(e) => setChatMinTotal(e.target.value)}
                               placeholder="0.00"
-                              className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 outline-none transition focus:border-slate-500"
+                              className={`${chatFilterInputClasses} placeholder:text-slate-400`}
                             />
                           </div>
 
                           <div>
-                            <label className="mb-1 block text-xs text-slate-400">
+                            <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
                               {adminCopy.maxTotal}
                             </label>
                             <input
@@ -1190,7 +1230,7 @@ export function Admin() {
                               value={chatMaxTotal}
                               onChange={(e) => setChatMaxTotal(e.target.value)}
                               placeholder="999.99"
-                              className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 outline-none transition focus:border-slate-500"
+                              className={`${chatFilterInputClasses} placeholder:text-slate-400`}
                             />
                           </div>
                         </div>
@@ -1205,7 +1245,7 @@ export function Admin() {
                             setChatMinTotal("");
                             setChatMaxTotal("");
                           }}
-                          className="rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800"
+                          className={`rounded-xl border px-3 py-2 text-xs font-semibold ${chatFilterClearClasses}`}
                         >
                           {common.clear}
                         </button>
@@ -1213,7 +1253,7 @@ export function Admin() {
                         <button
                           type="button"
                           onClick={() => setChatFilterOpen(false)}
-                          className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-900 hover:bg-white"
+                          className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${chatFilterDoneClasses}`}
                         >
                           {common.done}
                         </button>
@@ -1222,18 +1262,26 @@ export function Admin() {
                   ) : null}
                 </div>
 
-                <div className="mt-2 text-xs text-slate-400">
+                <div className={`mt-2 text-xs ${chatListMetaClasses}`}>
                   {common.shownCount(filteredThreads.length, threads.length)}
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 divide-y divide-slate-800 overflow-y-auto">
+              <div
+                className={`min-h-0 flex-1 overflow-y-auto ${
+                  isDarkTheme ? "divide-y divide-slate-800" : "divide-y divide-slate-200"
+                }`}
+              >
                 {threads.length === 0 ? (
-                  <div className="flex h-full min-h-[560px] items-center justify-center px-6 text-sm text-slate-400">
+                  <div
+                    className={`flex h-full min-h-[560px] items-center justify-center px-6 text-sm ${chatListEmptyClasses}`}
+                  >
                     {adminCopy.noOrderChats}
                   </div>
                 ) : filteredThreads.length === 0 ? (
-                  <div className="flex h-full min-h-[560px] items-center justify-center px-6 text-sm text-slate-400">
+                  <div
+                    className={`flex h-full min-h-[560px] items-center justify-center px-6 text-sm ${chatListEmptyClasses}`}
+                  >
                     {adminCopy.noChatsMatch}
                   </div>
                 ) : (
@@ -1245,7 +1293,13 @@ export function Admin() {
                       <div
                         key={thread.id}
                         className={`flex items-start gap-3 px-5 py-4 transition ${
-                          active ? "bg-white/10" : "bg-transparent hover:bg-white/5"
+                          isDarkTheme
+                            ? active
+                              ? "bg-white/10"
+                              : "bg-transparent hover:bg-white/5"
+                            : active
+                              ? "bg-slate-100"
+                              : "bg-transparent hover:bg-slate-50"
                         }`}
                       >
                         {isSelecting ? (
@@ -1263,15 +1317,19 @@ export function Admin() {
                           className="min-w-0 flex-1 text-left"
                         >
                           <div className="flex items-center justify-between gap-3">
-                            <div className="truncate text-[15px] font-semibold text-white">
+                            <div
+                              className={`truncate text-[15px] font-semibold ${
+                                isDarkTheme ? "text-white" : "text-slate-900"
+                              }`}
+                            >
                               {getCustomerLabel(thread)}
                             </div>
-                            <div className="shrink-0 text-xs text-slate-400">
+                            <div className={`shrink-0 text-xs ${chatListMetaClasses}`}>
                               {formatTime(thread.created_at)}
                             </div>
                           </div>
 
-                          <div className="mt-1 truncate text-sm text-slate-300">
+                          <div className={`mt-1 truncate text-sm ${chatListNoteClasses}`}>
                             {thread.customer_note || common.orderPreviewTotal(money(thread.total_cents))}
                           </div>
 
@@ -1283,7 +1341,7 @@ export function Admin() {
                             >
                               {formatStatus(thread.status)}
                             </span>
-                            <span className="text-slate-500">{common.orderId(thread.id)}</span>
+                            <span className={chatListOrderIdClasses}>{common.orderId(thread.id)}</span>
                           </div>
                         </button>
                       </div>
