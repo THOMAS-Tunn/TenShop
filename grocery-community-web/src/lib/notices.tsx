@@ -35,7 +35,7 @@ type NoticeContextValue = {
 
 const NoticeContext = createContext<NoticeContextValue | null>(null);
 
-const MAX_VISIBLE_NOTICES = 4;
+const MAX_VISIBLE_NOTICES = 1;
 const DEFAULT_DURATION_BY_VARIANT: Record<NoticeVariant, number> = {
   info: 4500,
   success: 4200,
@@ -101,6 +101,8 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
   const [notices, setNotices] = useState<Notice[]>([]);
   const nextIdRef = useRef(0);
   const timerMapRef = useRef<Record<string, number>>({});
+  const activeNotice = notices[0] ?? null;
+  const activeTone = activeNotice ? getNoticeToneClasses(theme, activeNotice.variant) : null;
 
   const clearNoticeTimer = useCallback((id: string) => {
     const timer = timerMapRef.current[id];
@@ -179,6 +181,19 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!activeNotice) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        dismissNotice(activeNotice.id);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeNotice, dismissNotice]);
+
   const value = useMemo<NoticeContextValue>(
     () => ({
       dismissNotice,
@@ -195,54 +210,64 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
     <NoticeContext.Provider value={value}>
       {children}
 
-      <div className="pointer-events-none fixed inset-x-0 top-20 z-[70] flex justify-center px-4 sm:top-24 sm:justify-end">
-        <div className="flex w-full max-w-sm flex-col gap-3">
-          {notices.map((notice) => {
-            const tone = getNoticeToneClasses(theme, notice.variant);
+      {activeNotice ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6">
+          <div
+            aria-hidden="true"
+            onClick={() => dismissNotice(activeNotice.id)}
+            className={clsx(
+              "absolute inset-0 transition-opacity duration-200",
+              theme === "dark" ? "bg-slate-950/70 backdrop-blur-sm" : "bg-slate-900/25 backdrop-blur-sm"
+            )}
+          />
 
-            return (
+          <div
+            aria-live={activeNotice.variant === "error" ? "assertive" : "polite"}
+            role={activeNotice.variant === "error" ? "alert" : "status"}
+            className={clsx(
+              "relative w-full max-w-lg overflow-hidden rounded-[32px] border shadow-2xl backdrop-blur-xl",
+              activeTone?.panel
+            )}
+          >
+            <div className={clsx("h-1.5 w-full", activeTone?.rail)} />
+
+            <div className="flex items-start gap-4 p-5 sm:p-6">
               <div
-                key={notice.id}
-                aria-live={notice.variant === "error" ? "assertive" : "polite"}
-                role={notice.variant === "error" ? "alert" : "status"}
                 className={clsx(
-                  "pointer-events-auto overflow-hidden rounded-[28px] border shadow-2xl backdrop-blur-xl",
-                  tone.panel
+                  "mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
+                  activeTone?.iconWrap
                 )}
               >
-                <div className="flex items-start gap-3 p-4">
-                  <div
-                    className={clsx(
-                      "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl",
-                      tone.iconWrap
-                    )}
-                  >
-                    <i className={clsx("fa-solid text-base", NOTICE_ICONS[notice.variant], tone.icon)} />
-                  </div>
-
-                  <p className="flex-1 pt-0.5 text-sm leading-6">{notice.message}</p>
-
-                  <button
-                    type="button"
-                    aria-label={copy.common.close}
-                    onClick={() => dismissNotice(notice.id)}
-                    className={clsx(
-                      "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition",
-                      theme === "dark"
-                        ? "text-slate-400 hover:bg-white/10 hover:text-slate-100"
-                        : "text-slate-500 hover:bg-slate-900/5 hover:text-slate-900"
-                    )}
-                  >
-                    <i className="fa-solid fa-xmark" aria-hidden="true" />
-                  </button>
-                </div>
-
-                <div className={clsx("h-1 w-full", tone.rail)} />
+                <i
+                  className={clsx(
+                    "fa-solid text-lg",
+                    NOTICE_ICONS[activeNotice.variant],
+                    activeTone?.icon
+                  )}
+                />
               </div>
-            );
-          })}
+
+              <p className="flex-1 pt-1 text-sm leading-7 sm:text-base">
+                {activeNotice.message}
+              </p>
+
+              <button
+                type="button"
+                aria-label={copy.common.close}
+                onClick={() => dismissNotice(activeNotice.id)}
+                className={clsx(
+                  "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition",
+                  theme === "dark"
+                    ? "text-slate-400 hover:bg-white/10 hover:text-slate-100"
+                    : "text-slate-500 hover:bg-slate-900/5 hover:text-slate-900"
+                )}
+              >
+                <i className="fa-solid fa-xmark" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      ) : null}
     </NoticeContext.Provider>
   );
 }
