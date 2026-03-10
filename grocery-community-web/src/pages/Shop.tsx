@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Card } from "../components/Card";
 import { useAppSettings } from "../lib/app-settings";
 import type { SessionUser } from "../lib/auth";
+import { useNotice } from "../lib/notices";
 import { supabase } from "../lib/supabase";
 
 type Product = {
@@ -35,6 +36,7 @@ type PendingItemAction = {
 
 export function Shop({ user }: { user: SessionUser }) {
   const { copy, formatCurrency, formatDateTime } = useAppSettings();
+  const notice = useNotice();
   const common = copy.common;
   const shop = copy.shop;
 
@@ -42,7 +44,7 @@ export function Shop({ user }: { user: SessionUser }) {
   const [productSearch, setProductSearch] = useState("");
   const [lists, setLists] = useState<List[]>([]);
   const [listItems, setListItems] = useState<ListItem[]>([]);
-  const [listName, setListName] = useState(shop.defaultListName);
+  const [listName, setListName] = useState(shop.defaultCartName);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
@@ -149,7 +151,7 @@ export function Shop({ user }: { user: SessionUser }) {
     setBusy(false);
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
 
@@ -159,7 +161,7 @@ export function Shop({ user }: { user: SessionUser }) {
 
   async function deleteList(listId: string) {
     const target = lists.find((list) => list.id === listId);
-    const ok = window.confirm(shop.deleteListConfirm(target?.name ?? shop.selectedListFallback));
+    const ok = window.confirm(shop.deleteCartConfirm(target?.name ?? shop.selectedCartFallback));
     if (!ok) return;
 
     setDeletingListId(listId);
@@ -172,7 +174,7 @@ export function Shop({ user }: { user: SessionUser }) {
 
     if (itemsError) {
       setDeletingListId(null);
-      alert(itemsError.message);
+      notice.showError(itemsError.message);
       return;
     }
 
@@ -185,7 +187,7 @@ export function Shop({ user }: { user: SessionUser }) {
     setDeletingListId(null);
 
     if (listError) {
-      alert(listError.message);
+      notice.showError(listError.message);
       return;
     }
 
@@ -217,7 +219,7 @@ export function Shop({ user }: { user: SessionUser }) {
 
     if (error) {
       setListItems(previousItems);
-      alert(error.message);
+      notice.showError(error.message);
     }
   }
 
@@ -236,13 +238,13 @@ export function Shop({ user }: { user: SessionUser }) {
 
     if (error) {
       setListItems(previousItems);
-      alert(error.message);
+      notice.showError(error.message);
     }
   }
 
   async function addProductToList(product: Product) {
     if (!selectedListId) {
-      alert(shop.createOrSelectListFirst);
+      notice.showWarning(shop.createOrSelectCartFirst);
       return;
     }
 
@@ -258,7 +260,7 @@ export function Shop({ user }: { user: SessionUser }) {
 
     if (readErr) {
       setAddingId(null);
-      alert(readErr.message);
+      notice.showError(readErr.message);
       return;
     }
 
@@ -270,7 +272,7 @@ export function Shop({ user }: { user: SessionUser }) {
 
       setAddingId(null);
       if (updErr) {
-        alert(updErr.message);
+        notice.showError(updErr.message);
         return;
       }
 
@@ -289,7 +291,7 @@ export function Shop({ user }: { user: SessionUser }) {
 
     setAddingId(null);
     if (insErr) {
-      alert(insErr.message);
+      notice.showError(insErr.message);
       return;
     }
 
@@ -399,11 +401,11 @@ export function Shop({ user }: { user: SessionUser }) {
                         {shop.addsTo}{" "}
                         <span className="font-medium">
                           {lists.find((list) => list.id === selectedListId)?.name ??
-                            shop.selectedListFallback}
+                            shop.selectedCartFallback}
                         </span>
                       </div>
                     ) : (
-                      <div className="mt-2 text-xs text-slate-500">{shop.createListToStart}</div>
+                      <div className="mt-2 text-xs text-slate-500">{shop.createCartToStart}</div>
                     )}
                   </Card>
                 ))
@@ -413,17 +415,17 @@ export function Shop({ user }: { user: SessionUser }) {
 
           <aside className="space-y-4">
             <Card className="p-5">
-              <div className="text-sm font-semibold">{shop.yourLists}</div>
+              <div className="text-sm font-semibold">{shop.yourCarts}</div>
 
               <div className="mt-3">
-                <div className="text-xs font-medium text-slate-600">{shop.selectedList}</div>
+                <div className="text-xs font-medium text-slate-600">{shop.selectedCart}</div>
                 <select
                   value={selectedListId ?? ""}
                   onChange={(e) => setSelectedListId(e.target.value)}
                   className="mt-2 w-full rounded-2xl border px-3 py-2 text-sm"
                 >
                   <option value="" disabled>
-                    {shop.selectAList}
+                    {shop.selectACart}
                   </option>
                   {lists.map((list) => (
                     <option key={list.id} value={list.id}>
@@ -438,7 +440,7 @@ export function Shop({ user }: { user: SessionUser }) {
                   value={listName}
                   onChange={(e) => setListName(e.target.value)}
                   className="w-full rounded-2xl border px-3 py-2 text-sm"
-                  placeholder={shop.listName}
+                  placeholder={shop.cartName}
                 />
                 <button
                   disabled={busy}
@@ -451,7 +453,7 @@ export function Shop({ user }: { user: SessionUser }) {
 
               <div className="mt-4 space-y-2">
                 {lists.length === 0 ? (
-                  <div className="text-sm text-slate-600">{shop.noListsYet}</div>
+                  <div className="text-sm text-slate-600">{shop.noCartsYet}</div>
                 ) : (
                   lists.map((list) => {
                     const isSelected = list.id === selectedListId;
@@ -477,8 +479,8 @@ export function Shop({ user }: { user: SessionUser }) {
 
                           <button
                             type="button"
-                            aria-label={common.deleteListAria(list.name)}
-                            title={shop.deleteListTitle}
+                            aria-label={common.deleteCartAria(list.name)}
+                            title={shop.deleteCartTitle}
                             disabled={deletingListId === list.id}
                             onClick={() => void deleteList(list.id)}
                             className="rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 transition hover:bg-red-100 disabled:opacity-60"
@@ -499,10 +501,10 @@ export function Shop({ user }: { user: SessionUser }) {
                         </div>
 
                         <Link
-                          to={`/lists/${list.id}`}
+                          to={`/carts/${list.id}`}
                           className="mt-3 inline-flex text-xs font-medium text-slate-600 underline-offset-2 hover:underline"
                         >
-                          {shop.openFullList}
+                          {shop.openFullCart}
                         </Link>
                       </div>
                     );
@@ -514,9 +516,9 @@ export function Shop({ user }: { user: SessionUser }) {
             <Card className="p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold">{shop.listItems}</div>
+                  <div className="text-sm font-semibold">{shop.cartItems}</div>
                   <div className="mt-1 text-xs text-slate-500">
-                    {selectedList ? selectedList.name : shop.chooseListToView}
+                    {selectedList ? selectedList.name : shop.chooseCartToView}
                   </div>
                 </div>
                 {selectedList ? (
@@ -527,9 +529,9 @@ export function Shop({ user }: { user: SessionUser }) {
               </div>
 
               {!selectedList ? (
-                <div className="mt-4 text-sm text-slate-600">{shop.noListSelected}</div>
+                <div className="mt-4 text-sm text-slate-600">{shop.noCartSelected}</div>
               ) : listItems.length === 0 ? (
-                <div className="mt-4 text-sm text-slate-600">{shop.listIsEmpty}</div>
+                <div className="mt-4 text-sm text-slate-600">{shop.cartIsEmpty}</div>
               ) : (
                 <div className="mt-4 space-y-3">
                   {listItems.map((item) => {
@@ -550,7 +552,7 @@ export function Shop({ user }: { user: SessionUser }) {
                             <div className="text-sm font-semibold text-slate-900">
                               {formatCurrency(item.price_cents * item.qty)}
                             </div>
-                            <div className="mt-1 text-xs text-slate-500">{shop.inList(item.qty)}</div>
+                            <div className="mt-1 text-xs text-slate-500">{shop.inCart(item.qty)}</div>
                           </div>
                         </div>
 
@@ -580,7 +582,7 @@ export function Shop({ user }: { user: SessionUser }) {
                           <button
                             type="button"
                             aria-label={common.removeItemAria(item.name)}
-                            title={copy.listDetail.remove}
+                            title={copy.cartDetail.remove}
                             disabled={isPending}
                             onClick={() => void removeListItem(item.id)}
                             className="rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 transition hover:bg-red-100 disabled:opacity-60"

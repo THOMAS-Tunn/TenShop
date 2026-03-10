@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Card } from "../components/Card";
 import { useAppSettings } from "../lib/app-settings";
 import type { SessionUser } from "../lib/auth";
+import { useNotice } from "../lib/notices";
 import { supabase } from "../lib/supabase";
 
 type Order = {
@@ -54,6 +55,7 @@ export function OrderDetail({ user }: { user: SessionUser }) {
   const navigate = useNavigate();
   const { copy, formatCurrency, formatDateTime, formatStatus, formatStoredMessage } =
     useAppSettings();
+  const notice = useNotice();
   const common = copy.common;
   const page = copy.orderDetail;
 
@@ -147,7 +149,7 @@ export function OrderDetail({ user }: { user: SessionUser }) {
     setSending(false);
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
 
@@ -167,7 +169,7 @@ export function OrderDetail({ user }: { user: SessionUser }) {
     });
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
 
@@ -186,7 +188,7 @@ export function OrderDetail({ user }: { user: SessionUser }) {
 
     if (messageError) {
       setDeletingChat(false);
-      alert(messageError.message);
+      notice.showError(messageError.message);
       return;
     }
 
@@ -194,7 +196,7 @@ export function OrderDetail({ user }: { user: SessionUser }) {
 
     if (itemError) {
       setDeletingChat(false);
-      alert(itemError.message);
+      notice.showError(itemError.message);
       return;
     }
 
@@ -207,7 +209,7 @@ export function OrderDetail({ user }: { user: SessionUser }) {
     setDeletingChat(false);
 
     if (orderError) {
-      alert(orderError.message);
+      notice.showError(orderError.message);
       return;
     }
 

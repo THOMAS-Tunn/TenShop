@@ -3,6 +3,7 @@ import { Card } from "../components/Card";
 import { ProductImageField } from "../components/ProductImageField";
 import { useAppSettings } from "../lib/app-settings";
 import { uploadProductImage } from "../lib/imagekit";
+import { useNotice } from "../lib/notices";
 import { supabase } from "../lib/supabase";
 
 type Product = {
@@ -83,6 +84,7 @@ export function Admin() {
     formatStatus,
     formatStoredMessage,
   } = useAppSettings();
+  const notice = useNotice();
   const common = copy.common;
   const adminCopy = copy.admin;
   const money = formatCurrency;
@@ -254,7 +256,7 @@ export function Admin() {
     const { data, error } = await supabase.from("products").select("*").order("name");
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
 
@@ -271,7 +273,7 @@ export function Admin() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
 
@@ -331,7 +333,7 @@ export function Admin() {
       .order("created_at");
 
     if (messageError) {
-      alert(messageError.message);
+      notice.showError(messageError.message);
       return;
     }
 
@@ -355,7 +357,7 @@ export function Admin() {
       .single();
 
     if (orderError) {
-      alert(orderError.message);
+      notice.showError(orderError.message);
       setLoadingChat(false);
       return;
     }
@@ -367,13 +369,13 @@ export function Admin() {
       ]);
 
     if (itemError) {
-      alert(itemError.message);
+      notice.showError(itemError.message);
       setLoadingChat(false);
       return;
     }
 
     if (messageError) {
-      alert(messageError.message);
+      notice.showError(messageError.message);
       setLoadingChat(false);
       return;
     }
@@ -487,7 +489,7 @@ export function Admin() {
     });
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
 
@@ -506,7 +508,7 @@ export function Admin() {
       const nextUrl = await uploadProductImage(file);
       setImageUrl(nextUrl);
     } catch (error) {
-      alert(error instanceof Error ? error.message : adminCopy.imageUploadFailed);
+      notice.showError(error instanceof Error ? error.message : adminCopy.imageUploadFailed);
     } finally {
       setUploadingNewImage(false);
     }
@@ -543,7 +545,7 @@ export function Admin() {
       .eq("id", id);
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
 
@@ -558,7 +560,7 @@ export function Admin() {
       const nextUrl = await uploadProductImage(file);
       setEditImageUrl(nextUrl);
     } catch (error) {
-      alert(error instanceof Error ? error.message : adminCopy.imageUploadFailed);
+      notice.showError(error instanceof Error ? error.message : adminCopy.imageUploadFailed);
     } finally {
       setUploadingEditImage(false);
     }
@@ -568,7 +570,7 @@ export function Admin() {
     const { error } = await supabase.from("products").delete().eq("id", id);
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
 
@@ -593,7 +595,7 @@ export function Admin() {
 
   async function markSelectedAsShipped() {
     if (selectedBulkIds.length === 0) {
-      alert(adminCopy.selectChatFirst);
+      notice.showWarning(adminCopy.selectChatFirst);
       return;
     }
 
@@ -606,7 +608,7 @@ export function Admin() {
       .in("id", selectedBulkIds);
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
 
@@ -620,7 +622,7 @@ export function Admin() {
 
   async function hideSelectedChatsForAdmin() {
     if (selectedBulkIds.length === 0) {
-      alert(adminCopy.selectChatFirst);
+      notice.showWarning(adminCopy.selectChatFirst);
       return;
     }
 
@@ -633,7 +635,7 @@ export function Admin() {
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      alert(adminCopy.adminNotFound);
+      notice.showError(adminCopy.adminNotFound);
       return;
     }
 
@@ -646,7 +648,7 @@ export function Admin() {
       .in("id", selectedBulkIds);
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
 
@@ -670,7 +672,7 @@ export function Admin() {
       .eq("id", selectedChatId);
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
 
@@ -713,7 +715,7 @@ export function Admin() {
 
     if (authError || !user) {
       setSendingReply(false);
-      alert(adminCopy.adminNotFound);
+      notice.showError(adminCopy.adminNotFound);
       return;
     }
 
@@ -744,7 +746,7 @@ export function Admin() {
     if (error) {
       setSelectedMessages((prev) => prev.filter((message) => message.id !== optimisticId));
       setReplyBody(nextBody);
-      alert(error.message);
+      notice.showError(error.message);
     }
   }
 

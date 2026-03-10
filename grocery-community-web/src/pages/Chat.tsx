@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Card } from "../components/Card";
 import { useAppSettings } from "../lib/app-settings";
 import type { SessionUser } from "../lib/auth";
+import { useNotice } from "../lib/notices";
 import { supabase } from "../lib/supabase";
 
 type OrderRow = {
@@ -28,6 +29,7 @@ type OrderMessage = {
 export function Chat({ user }: { user: SessionUser }) {
   const { copy, formatCurrency, formatDateTime, formatStatus, formatStoredMessage } =
     useAppSettings();
+  const notice = useNotice();
   const common = copy.common;
   const page = copy.chat;
 
@@ -84,7 +86,7 @@ export function Chat({ user }: { user: SessionUser }) {
       .order("created_at", { ascending: false });
 
     if (orderError) {
-      alert(orderError.message);
+      notice.showError(orderError.message);
       setLoading(false);
       return;
     }
@@ -107,7 +109,7 @@ export function Chat({ user }: { user: SessionUser }) {
       .order("created_at", { ascending: false });
 
     if (messageError) {
-      alert(messageError.message);
+      notice.showError(messageError.message);
       setLoading(false);
       return;
     }
@@ -137,7 +139,7 @@ export function Chat({ user }: { user: SessionUser }) {
 
     if (messageError) {
       setDeletingId(null);
-      alert(messageError.message);
+      notice.showError(messageError.message);
       return;
     }
 
@@ -145,7 +147,7 @@ export function Chat({ user }: { user: SessionUser }) {
 
     if (itemError) {
       setDeletingId(null);
-      alert(itemError.message);
+      notice.showError(itemError.message);
       return;
     }
 
@@ -158,7 +160,7 @@ export function Chat({ user }: { user: SessionUser }) {
     setDeletingId(null);
 
     if (orderError) {
-      alert(orderError.message);
+      notice.showError(orderError.message);
       return;
     }
 

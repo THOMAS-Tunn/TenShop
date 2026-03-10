@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Route, Routes, Navigate, useLocation } from "react-router-dom";
+import { Route, Routes, Navigate, useLocation, useParams } from "react-router-dom";
 import { getCurrentUser, type SessionUser } from "./lib/auth";
 import { Layout } from "./components/Layout";
 import { Home } from "./pages/Home";
@@ -7,7 +7,7 @@ import { Auth } from "./pages/Auth";
 import { Shop } from "./pages/Shop";
 import { Community } from "./pages/Community";
 import { Chat } from "./pages/Chat";
-import { ListDetail } from "./pages/ListDetail";
+import { CartDetail } from "./pages/CartDetail";
 import { Profile } from "./pages/Profile";
 import { OrderDetail } from "./pages/OrderDetail";
 import { Admin } from "./pages/Admin";
@@ -23,6 +23,11 @@ function RequireAuth({
   const loc = useLocation();
   if (!user) return <Navigate to="/auth" state={{ from: loc.pathname }} replace />;
   return children(user);
+}
+
+function LegacyListRedirect() {
+  const { id } = useParams();
+  return <Navigate to={id ? `/carts/${id}` : "/shop"} replace />;
 }
 
 export default function App() {
@@ -128,13 +133,14 @@ export default function App() {
           }
         />
         <Route
-          path="/lists/:id"
+          path="/carts/:id"
           element={
             <RequireAuth user={user}>
-              {(u) => <ListDetail user={u} />}
+              {(u) => <CartDetail user={u} />}
             </RequireAuth>
           }
         />
+        <Route path="/lists/:id" element={<LegacyListRedirect />} />
         <Route
           path="/orders/:id"
           element={

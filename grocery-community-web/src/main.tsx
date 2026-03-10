@@ -4,13 +4,16 @@ import { BrowserRouter } from "react-router-dom";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import App from "./App";
 import { AppSettingsProvider } from "./lib/app-settings";
+import { NoticeProvider } from "./lib/notices";
 import "./styles.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>
       <AppSettingsProvider>
-        <App />
+        <NoticeProvider>
+          <App />
+        </NoticeProvider>
       </AppSettingsProvider>
     </BrowserRouter>
   </React.StrictMode>

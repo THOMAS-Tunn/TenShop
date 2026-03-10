@@ -91,8 +91,8 @@ export function Home({ user }: { user: SessionUser | null }) {
 
             <div className="mt-6 grid grid-cols-3 gap-3">
               <div className="rounded-2xl border border-slate-200 p-3 text-center">
-                <div className="text-lg font-semibold text-slate-900">{home.listsTitle}</div>
-                <div className="mt-1 text-xs text-slate-500">{home.listsDesc}</div>
+                <div className="text-lg font-semibold text-slate-900">{home.cartsTitle}</div>
+                <div className="mt-1 text-xs text-slate-500">{home.cartsDesc}</div>
               </div>
               <div className="rounded-2xl border border-slate-200 p-3 text-center">
                 <div className="text-lg font-semibold text-slate-900">{home.shopTitle}</div>

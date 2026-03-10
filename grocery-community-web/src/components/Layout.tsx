@@ -82,7 +82,7 @@ export function Layout({ user, loading }: { user: SessionUser | null; loading: b
   return (
     <header
       className={clsx(
-        "sticky top-0 z-50 backdrop-blur-xl transition-colors duration-300",
+        "sticky top-0 z-50 backdrop-blur-sm transition-colors duration-300",
         headerClasses
       )}
     >

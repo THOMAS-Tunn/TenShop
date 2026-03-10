@@ -35,8 +35,8 @@
     --app-text-muted: 203 213 225;
     --app-text-soft: 148 163 184;
     --app-input-bg: 15 23 42;
-    --app-selection: 148 163 184;
-    --app-selection-text: 2 6 23;
+    --app-selection: 28 28 28;
+    --app-selection-text: 255 165 0;
   }
 
   html {

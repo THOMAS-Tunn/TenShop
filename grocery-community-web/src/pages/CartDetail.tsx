@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Card } from "../components/Card";
 import { useAppSettings } from "../lib/app-settings";
 import type { SessionUser } from "../lib/auth";
+import { useNotice } from "../lib/notices";
 import { supabase } from "../lib/supabase";
 
 type Product = {
@@ -26,7 +27,7 @@ type Address = {
   is_default: boolean;
 };
 
-type ListItem = {
+type CartItem = {
   id: string;
   list_id: string;
   user_id: string;
@@ -38,14 +39,15 @@ type ListItem = {
 
 const SHIPPING_FEE_CENTS = 499;
 
-export function ListDetail({ user }: { user: SessionUser }) {
-  const { id: listId } = useParams();
+export function CartDetail({ user }: { user: SessionUser }) {
+  const { id: cartId } = useParams();
   const navigate = useNavigate();
   const { copy, formatCurrency } = useAppSettings();
+  const notice = useNotice();
   const common = copy.common;
-  const page = copy.listDetail;
+  const page = copy.cartDetail;
 
-  const [items, setItems] = useState<ListItem[]>([]);
+  const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [q, setQ] = useState("");
@@ -58,14 +60,14 @@ export function ListDetail({ user }: { user: SessionUser }) {
   const [submittingOrder, setSubmittingOrder] = useState(false);
 
   async function loadItems() {
-    if (!listId) return;
+    if (!cartId) return;
 
     setLoading(true);
 
     const { data, error } = await supabase
       .from("shopping_list_items")
       .select("id,list_id,user_id,product_id,name,price_cents,qty")
-      .eq("list_id", listId)
+      .eq("list_id", cartId)
       .eq("user_id", user.id)
       .order("name", { ascending: true });
 
@@ -73,7 +75,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
       console.error(error);
     }
 
-    setItems((data ?? []) as ListItem[]);
+    setItems((data ?? []) as CartItem[]);
     setLoading(false);
   }
 
@@ -86,7 +88,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
       .order("created_at", { ascending: false });
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
 
@@ -106,7 +108,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
   useEffect(() => {
     void loadItems();
     void loadAddresses();
-  }, [listId]);
+  }, [cartId]);
 
   useEffect(() => {
     if (!q.trim()) {
@@ -136,18 +138,18 @@ export function ListDetail({ user }: { user: SessionUser }) {
   }, [q]);
 
   async function addProduct(product: Product) {
-    if (!listId) return;
+    if (!cartId) return;
 
     const { data: existing, error: readErr } = await supabase
       .from("shopping_list_items")
       .select("id, qty")
-      .eq("list_id", listId)
+      .eq("list_id", cartId)
       .eq("user_id", user.id)
       .eq("product_id", product.id)
       .maybeSingle();
 
     if (readErr) {
-      alert(readErr.message);
+      notice.showError(readErr.message);
       return;
     }
 
@@ -162,7 +164,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
         .eq("id", existing.id);
 
       if (updErr) {
-        alert(updErr.message);
+        notice.showError(updErr.message);
         await loadItems();
       }
 
@@ -172,7 +174,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
     const { data: inserted, error: insErr } = await supabase
       .from("shopping_list_items")
       .insert({
-        list_id: listId,
+        list_id: cartId,
         user_id: user.id,
         product_id: product.id,
         name: product.name,
@@ -183,12 +185,12 @@ export function ListDetail({ user }: { user: SessionUser }) {
       .single();
 
     if (insErr) {
-      alert(insErr.message);
+      notice.showError(insErr.message);
       return;
     }
 
     setItems((prev) =>
-      [...prev, inserted as ListItem].sort((left, right) => left.name.localeCompare(right.name))
+      [...prev, inserted as CartItem].sort((left, right) => left.name.localeCompare(right.name))
     );
   }
 
@@ -208,7 +210,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
     const { error } = await supabase.from("shopping_list_items").update({ qty: nextQty }).eq("id", itemId);
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       await loadItems();
     }
   }
@@ -220,7 +222,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
     const { error } = await supabase.from("shopping_list_items").delete().eq("id", itemId);
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       setItems(previous);
     }
   }
@@ -234,15 +236,15 @@ export function ListDetail({ user }: { user: SessionUser }) {
   const totalCents = subtotalCents + taxCents + shippingCents;
 
   async function submitOrder() {
-    if (!listId) return;
+    if (!cartId) return;
 
     if (items.length === 0) {
-      alert(page.listEmptyAlert);
+      notice.showWarning(page.cartEmptyAlert);
       return;
     }
 
     if (!selectedAddressId) {
-      alert(page.addressRequiredAlert);
+      notice.showWarning(page.addressRequiredAlert);
       return;
     }
 
@@ -252,7 +254,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
       .from("orders")
       .insert({
         user_id: user.id,
-        list_id: listId,
+        list_id: cartId,
         address_id: selectedAddressId,
         subtotal_cents: subtotalCents,
         tax_cents: taxCents,
@@ -265,7 +267,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
 
     if (orderError || !order) {
       setSubmittingOrder(false);
-      alert(orderError?.message ?? page.couldNotCreateOrder);
+      notice.showError(orderError?.message ?? page.couldNotCreateOrder);
       return;
     }
 
@@ -281,7 +283,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
 
     if (itemsError) {
       setSubmittingOrder(false);
-      alert(itemsError.message);
+      notice.showError(itemsError.message);
       return;
     }
 
@@ -321,7 +323,7 @@ export function ListDetail({ user }: { user: SessionUser }) {
     setSubmittingOrder(false);
 
     if (messagesError) {
-      alert(messagesError.message);
+      notice.showError(messagesError.message);
       return;
     }
 

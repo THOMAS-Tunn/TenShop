@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card } from "../components/Card";
 import { useAppSettings } from "../lib/app-settings";
 import type { SessionUser } from "../lib/auth";
+import { useNotice } from "../lib/notices";
 import { supabase } from "../lib/supabase";
 
 type Address = {
@@ -21,6 +22,7 @@ type Address = {
 
 export function Profile({ user }: { user: SessionUser }) {
   const { copy } = useAppSettings();
+  const notice = useNotice();
   const common = copy.common;
   const profile = copy.profile;
 
@@ -60,7 +62,7 @@ export function Profile({ user }: { user: SessionUser }) {
       .order("created_at", { ascending: false });
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
 
@@ -82,11 +84,11 @@ export function Profile({ user }: { user: SessionUser }) {
     });
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
 
-    alert(profile.profileSaved);
+    notice.showSuccess(profile.profileSaved);
   }
 
   async function addAddress(e: React.FormEvent) {
@@ -112,7 +114,7 @@ export function Profile({ user }: { user: SessionUser }) {
     });
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
 
@@ -136,7 +138,7 @@ export function Profile({ user }: { user: SessionUser }) {
     const { error } = await supabase.from("user_addresses").update({ is_default: true }).eq("id", addressId);
 
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
 
@@ -150,12 +152,12 @@ export function Profile({ user }: { user: SessionUser }) {
       .eq("address_id", addressId);
 
     if (checkError) {
-      alert(checkError.message);
+      notice.showError(checkError.message);
       return;
     }
 
     if ((count ?? 0) > 0) {
-      alert(profile.cannotDeleteUsedAddress);
+      notice.showWarning(profile.cannotDeleteUsedAddress);
       return;
     }
 
@@ -164,7 +166,7 @@ export function Profile({ user }: { user: SessionUser }) {
 
     const { error } = await supabase.from("user_addresses").delete().eq("id", addressId);
     if (error) {
-      alert(error.message);
+      notice.showError(error.message);
       return;
     }
     await loadAddresses();
