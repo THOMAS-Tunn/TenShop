@@ -89,6 +89,16 @@ export function Admin() {
   const adminCopy = copy.admin;
   const money = formatCurrency;
   const isDarkTheme = theme === "dark";
+  const markDeliveredLabel = adminCopy.markShipped;
+  const markOnTheWayLabel = "On the way";
+  const markPackagingLabel = "Packaging";
+  const archiveLabel = "Archive";
+  const ordersTabLabel = "Orders";
+  const archiveTabLabel = "Archive";
+  const selectAllLabel = "Select All";
+  const allStatusesLabel = "All statuses";
+  const markMenuHeaderLabel = "Mark";
+  const noArchivedChatsLabel = "No archived chats yet.";
 
   const [items, setItems] = useState<Product[]>([]);
   const [name, setName] = useState("");
@@ -124,6 +134,10 @@ export function Admin() {
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isAddressOpen, setIsAddressOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"chat" | "items">("chat");
+  const [chatBoardView, setChatBoardView] = useState<"orders" | "archive">("orders");
+  const [chatStatusFilter, setChatStatusFilter] = useState("");
+  const [bulkActionMenuOpen, setBulkActionMenuOpen] = useState(false);
+  const [currentActionMenuOpen, setCurrentActionMenuOpen] = useState(false);
 
   const [itemSearch, setItemSearch] = useState("");
   const [chatSearch, setChatSearch] = useState("");
@@ -150,13 +164,19 @@ export function Admin() {
     if (status === "pending") {
       return "bg-amber-300 text-amber-950 ring-1 ring-amber-400";
     }
-    if (status === "shipped") {
-      return "bg-emerald-200 text-emerald-950 ring-1 ring-emerald-400";
+    if (status === "packaging") {
+      return "bg-orange-200 text-orange-950 ring-1 ring-orange-400";
+    }
+    if (status === "out_for_delivery" || status === "shipped") {
+      return "bg-cyan-200 text-cyan-950 ring-1 ring-cyan-400";
     }
     if (status === "confirmed") {
       return "bg-blue-200 text-blue-950 ring-1 ring-blue-400";
     }
     if (status === "delivered") {
+      return "bg-emerald-200 text-emerald-950 ring-1 ring-emerald-400";
+    }
+    if (status === "archived") {
       return "bg-slate-200 text-slate-900 ring-1 ring-slate-300";
     }
     if (status === "cancelled") {
@@ -213,6 +233,28 @@ export function Admin() {
     });
   }, [items, itemSearch]);
 
+  const statusFilterOptions = useMemo(() => {
+    const preferredOrder = [
+      "pending",
+      "confirmed",
+      "packaging",
+      "out_for_delivery",
+      "shipped",
+      "delivered",
+      "cancelled",
+      "archived",
+    ];
+    return Array.from(new Set([...preferredOrder, ...threads.map((thread) => thread.status)]));
+  }, [threads]);
+
+  const boardThreads = useMemo(
+    () =>
+      threads.filter((thread) =>
+        chatBoardView === "archive" ? thread.status === "archived" : thread.status !== "archived"
+      ),
+    [threads, chatBoardView]
+  );
+
   const filteredThreads = useMemo(() => {
     const query = chatSearch.trim().toLowerCase();
     const fromDate = chatDateFrom ? new Date(`${chatDateFrom}T00:00:00`) : null;
@@ -226,7 +268,9 @@ export function Admin() {
     const maxTotalCents =
       chatMaxTotal.trim() === "" || Number.isNaN(maxParsed) ? null : Math.round(maxParsed * 100);
 
-    return threads.filter((thread) => {
+    return boardThreads.filter((thread) => {
+      if (chatStatusFilter && thread.status !== chatStatusFilter) return false;
+
       if (query) {
         const searchable = [
           getCustomerLabel(thread),
@@ -250,7 +294,16 @@ export function Admin() {
 
       return true;
     });
-  }, [threads, chatSearch, chatDateFrom, chatDateTo, chatMinTotal, chatMaxTotal, profileMap]);
+  }, [
+    boardThreads,
+    chatSearch,
+    chatDateFrom,
+    chatDateTo,
+    chatMinTotal,
+    chatMaxTotal,
+    chatStatusFilter,
+    profileMap,
+  ]);
 
   async function loadProducts() {
     const { data, error } = await supabase.from("products").select("*").order("name");
@@ -405,8 +458,26 @@ export function Admin() {
     if (activeTab === "items") {
       closeChat();
       setChatFilterOpen(false);
+      setBulkActionMenuOpen(false);
+      setCurrentActionMenuOpen(false);
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (!selectedChatId) return;
+
+    const selectedThread = threads.find((thread) => thread.id === selectedChatId);
+    if (!selectedThread) return;
+
+    const shouldBeVisible =
+      chatBoardView === "archive"
+        ? selectedThread.status === "archived"
+        : selectedThread.status !== "archived";
+
+    if (!shouldBeVisible) {
+      closeChat();
+    }
+  }, [chatBoardView, selectedChatId, threads]);
 
   useEffect(() => {
     if (!selectedChatId) return;
@@ -586,57 +657,29 @@ export function Admin() {
   function startSelecting() {
     setIsSelecting(true);
     setSelectedBulkIds([]);
+    setBulkActionMenuOpen(false);
   }
 
   function cancelSelecting() {
     setIsSelecting(false);
     setSelectedBulkIds([]);
+    setBulkActionMenuOpen(false);
   }
 
-  async function markSelectedAsShipped() {
-    if (selectedBulkIds.length === 0) {
-      notice.showWarning(adminCopy.selectChatFirst);
-      return;
-    }
+  function selectAllFilteredChats() {
+    setSelectedBulkIds(filteredThreads.map((thread) => thread.id));
+  }
 
-    const ok = await notice.confirm(adminCopy.confirmMarkSelectedShipped, {
-      cancelLabel: common.cancel,
-      confirmLabel: adminCopy.markShipped,
-      variant: "success",
-    });
-    if (!ok) return;
-
-    const { error } = await supabase
-      .from("orders")
-      .update({ status: "shipped" })
-      .in("id", selectedBulkIds);
-
+  async function updateOrderStatuses(orderIds: string[], nextStatus: string) {
+    const { error } = await supabase.from("orders").update({ status: nextStatus }).in("id", orderIds);
     if (error) {
       notice.showError(error.message);
-      return;
+      return false;
     }
-
-    if (selectedChatId && selectedBulkIds.includes(selectedChatId)) {
-      await loadSelectedOrder(selectedChatId);
-    }
-
-    cancelSelecting();
-    await loadThreads();
+    return true;
   }
 
-  async function hideSelectedChatsForAdmin() {
-    if (selectedBulkIds.length === 0) {
-      notice.showWarning(adminCopy.selectChatFirst);
-      return;
-    }
-
-    const ok = await notice.confirm(adminCopy.confirmHideSelectedChats, {
-      cancelLabel: common.cancel,
-      confirmLabel: common.hide,
-      variant: "error",
-    });
-    if (!ok) return;
-
+  async function archiveOrdersFromAdmin(orderIds: string[]) {
     const {
       data: { user },
       error: authError,
@@ -644,7 +687,7 @@ export function Admin() {
 
     if (authError || !user) {
       notice.showError(adminCopy.adminNotFound);
-      return;
+      return false;
     }
 
     const { error } = await supabase
@@ -653,12 +696,79 @@ export function Admin() {
         admin_deleted_at: new Date().toISOString(),
         admin_deleted_by: user.id,
       })
-      .in("id", selectedBulkIds);
+      .in("id", orderIds);
 
     if (error) {
       notice.showError(error.message);
+      return false;
+    }
+
+    return true;
+  }
+
+  async function applyStatusToSelectedChats(nextStatus: string, actionLabel: string) {
+    if (selectedBulkIds.length === 0) {
+      notice.showWarning(adminCopy.selectChatFirst);
       return;
     }
+
+    const ok = await notice.confirm(
+      `Are you sure you want to mark the selected chats as ${formatStatus(nextStatus)}?`,
+      {
+        cancelLabel: common.cancel,
+        confirmLabel: actionLabel,
+        variant: "success",
+      }
+    );
+    if (!ok) return;
+
+    const updated = await updateOrderStatuses(selectedBulkIds, nextStatus);
+    if (!updated) return;
+
+    if (selectedChatId && selectedBulkIds.includes(selectedChatId)) {
+      if (nextStatus === "archived") {
+        setChatBoardView("archive");
+      } else if (chatBoardView === "archive") {
+        setChatBoardView("orders");
+      }
+      await loadSelectedOrder(selectedChatId);
+    }
+
+    cancelSelecting();
+    await loadThreads();
+  }
+
+  async function markSelectedAsDelivered() {
+    await applyStatusToSelectedChats("delivered", markDeliveredLabel);
+  }
+
+  async function markSelectedAsOnTheWay() {
+    await applyStatusToSelectedChats("out_for_delivery", markOnTheWayLabel);
+  }
+
+  async function markSelectedAsPackaging() {
+    await applyStatusToSelectedChats("packaging", markPackagingLabel);
+  }
+
+  async function archiveSelectedChats() {
+    await applyStatusToSelectedChats("archived", archiveLabel);
+  }
+
+  async function deleteSelectedChatsForAdmin() {
+    if (selectedBulkIds.length === 0) {
+      notice.showWarning(adminCopy.selectChatFirst);
+      return;
+    }
+
+    const ok = await notice.confirm(adminCopy.confirmHideSelectedChats, {
+      cancelLabel: common.cancel,
+      confirmLabel: common.delete,
+      variant: "error",
+    });
+    if (!ok) return;
+
+    const archived = await archiveOrdersFromAdmin(selectedBulkIds);
+    if (!archived) return;
 
     if (selectedChatId && selectedBulkIds.includes(selectedChatId)) {
       closeChat();
@@ -668,35 +778,69 @@ export function Admin() {
     await loadThreads();
   }
 
-  async function markCurrentAsShipped() {
+  async function applyStatusToCurrentChat(nextStatus: string, actionLabel: string) {
     if (!selectedChatId) return;
 
-    const ok = await notice.confirm(adminCopy.confirmMarkCurrentShipped, {
+    const ok = await notice.confirm(`Are you sure you want to mark this order as ${formatStatus(nextStatus)}?`, {
       cancelLabel: common.cancel,
-      confirmLabel: adminCopy.markShipped,
+      confirmLabel: actionLabel,
       variant: "success",
     });
     if (!ok) return;
 
-    const { error } = await supabase
-      .from("orders")
-      .update({ status: "shipped" })
-      .eq("id", selectedChatId);
+    const updated = await updateOrderStatuses([selectedChatId], nextStatus);
+    if (!updated) return;
 
-    if (error) {
-      notice.showError(error.message);
-      return;
+    if (nextStatus === "archived") {
+      setChatBoardView("archive");
+    } else if (chatBoardView === "archive") {
+      setChatBoardView("orders");
     }
 
     await loadThreads();
     await loadSelectedOrder(selectedChatId);
   }
 
+  async function markCurrentAsDelivered() {
+    await applyStatusToCurrentChat("delivered", markDeliveredLabel);
+  }
+
+  async function markCurrentAsOnTheWay() {
+    await applyStatusToCurrentChat("out_for_delivery", markOnTheWayLabel);
+  }
+
+  async function markCurrentAsPackaging() {
+    await applyStatusToCurrentChat("packaging", markPackagingLabel);
+  }
+
+  async function archiveCurrentChat() {
+    await applyStatusToCurrentChat("archived", archiveLabel);
+  }
+
+  async function deleteCurrentChatForAdmin() {
+    if (!selectedChatId) return;
+
+    const ok = await notice.confirm(adminCopy.confirmHideSelectedChats, {
+      cancelLabel: common.cancel,
+      confirmLabel: common.delete,
+      variant: "error",
+    });
+    if (!ok) return;
+
+    const archived = await archiveOrdersFromAdmin([selectedChatId]);
+    if (!archived) return;
+
+    closeChat();
+    await loadThreads();
+  }
+
   function openChat(orderId: string) {
     shouldStickToBottomRef.current = true;
     setChatFilterOpen(false);
+    setBulkActionMenuOpen(false);
     setIsSummaryOpen(false);
     setIsAddressOpen(false);
+    setCurrentActionMenuOpen(false);
     setReplyBody("");
     setSelectedOrder(null);
     setSelectedItems([]);
@@ -777,6 +921,7 @@ export function Admin() {
     shouldStickToBottomRef.current = true;
     setIsSummaryOpen(false);
     setIsAddressOpen(false);
+    setCurrentActionMenuOpen(false);
     setSelectedChatId(null);
     setSelectedOrder(null);
     setSelectedItems([]);
@@ -816,7 +961,11 @@ export function Admin() {
     ? Math.max(0, selectedOrder.total_cents - selectedOrder.subtotal_cents - selectedOrder.tax_cents)
     : 0;
   const hasAdvancedChatFilters =
-    !!chatDateFrom || !!chatDateTo || !!chatMinTotal.trim() || !!chatMaxTotal.trim();
+    !!chatDateFrom ||
+    !!chatDateTo ||
+    !!chatMinTotal.trim() ||
+    !!chatMaxTotal.trim() ||
+    !!chatStatusFilter;
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-10">
@@ -1111,6 +1260,30 @@ export function Admin() {
                     <p className={`mt-1 text-sm ${chatListSubtitleClasses}`}>
                       {adminCopy.customerChatsSubtitle}
                     </p>
+                    <div className="mt-3 inline-flex rounded-full border border-slate-300 bg-slate-100 p-1 shadow-sm">
+                      <button
+                        type="button"
+                        onClick={() => setChatBoardView("orders")}
+                        className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                          chatBoardView === "orders"
+                            ? "bg-slate-900 text-white"
+                            : "text-slate-700 hover:bg-white hover:text-slate-900"
+                        }`}
+                      >
+                        {ordersTabLabel}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setChatBoardView("archive")}
+                        className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                          chatBoardView === "archive"
+                            ? "bg-slate-900 text-white"
+                            : "text-slate-700 hover:bg-white hover:text-slate-900"
+                        }`}
+                      >
+                        {archiveTabLabel}
+                      </button>
+                    </div>
                   </div>
 
                   {!isSelecting ? (
@@ -1122,7 +1295,14 @@ export function Admin() {
                       {adminCopy.select}
                     </button>
                   ) : (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={selectAllFilteredChats}
+                        className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm hover:bg-slate-100"
+                      >
+                        {selectAllLabel}
+                      </button>
                       <button
                         type="button"
                         onClick={cancelSelecting}
@@ -1130,19 +1310,49 @@ export function Admin() {
                       >
                         {common.cancel}
                       </button>
+                      <div className="hidden flex-wrap gap-2 md:flex">
+                        <button
+                          type="button"
+                          onClick={markSelectedAsDelivered}
+                          className="rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-900 shadow-sm hover:bg-emerald-200"
+                        >
+                          {markDeliveredLabel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={archiveSelectedChats}
+                          className="rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm hover:bg-slate-200"
+                        >
+                          {archiveLabel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={markSelectedAsOnTheWay}
+                          className="rounded-xl border border-cyan-300 bg-cyan-100 px-3 py-2 text-xs font-semibold text-cyan-900 shadow-sm hover:bg-cyan-200"
+                        >
+                          {markOnTheWayLabel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={markSelectedAsPackaging}
+                          className="rounded-xl border border-orange-300 bg-orange-100 px-3 py-2 text-xs font-semibold text-orange-900 shadow-sm hover:bg-orange-200"
+                        >
+                          {markPackagingLabel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={deleteSelectedChatsForAdmin}
+                          className="rounded-xl border border-red-300 bg-red-100 px-3 py-2 text-xs font-semibold text-red-900 shadow-sm hover:bg-red-200"
+                        >
+                          {common.delete}
+                        </button>
+                      </div>
                       <button
                         type="button"
-                        onClick={markSelectedAsShipped}
-                        className="rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-900 shadow-sm hover:bg-emerald-200"
+                        onClick={() => setBulkActionMenuOpen(true)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-100 md:hidden"
                       >
-                        {adminCopy.markShipped}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={hideSelectedChatsForAdmin}
-                        className="rounded-xl border border-red-300 bg-red-100 px-3 py-2 text-xs font-semibold text-red-900 shadow-sm hover:bg-red-200"
-                      >
-                        {common.delete}
+                        <i className="fa-solid fa-ellipsis" aria-hidden="true" />
                       </button>
                     </div>
                   )}
@@ -1217,6 +1427,24 @@ export function Admin() {
                           />
                         </div>
 
+                        <div>
+                          <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
+                            {common.status}
+                          </label>
+                          <select
+                            value={chatStatusFilter}
+                            onChange={(e) => setChatStatusFilter(e.target.value)}
+                            className={chatFilterInputClasses}
+                          >
+                            <option value="">{allStatusesLabel}</option>
+                            {statusFilterOptions.map((status) => (
+                              <option key={status} value={status}>
+                                {formatStatus(status)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-2">
                           <div>
                             <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
@@ -1256,6 +1484,7 @@ export function Admin() {
                           onClick={() => {
                             setChatDateFrom("");
                             setChatDateTo("");
+                            setChatStatusFilter("");
                             setChatMinTotal("");
                             setChatMaxTotal("");
                           }}
@@ -1277,8 +1506,88 @@ export function Admin() {
                 </div>
 
                 <div className={`mt-2 text-xs ${chatListMetaClasses}`}>
-                  {common.shownCount(filteredThreads.length, threads.length)}
+                  {common.shownCount(filteredThreads.length, boardThreads.length)}
                 </div>
+
+                {bulkActionMenuOpen ? (
+                  <div
+                    className="fixed inset-0 z-50 md:hidden"
+                    onClick={() => setBulkActionMenuOpen(false)}
+                  >
+                    <div className="absolute inset-0 bg-slate-950/30" />
+                    <div
+                      className="absolute right-4 top-20 w-64 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">
+                          {markMenuHeaderLabel}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setBulkActionMenuOpen(false)}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-600"
+                          aria-label={common.close}
+                        >
+                          <i className="fa-solid fa-x" aria-hidden="true" />
+                        </button>
+                      </div>
+
+                      <div className="mt-3 grid gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void markSelectedAsDelivered();
+                            setBulkActionMenuOpen(false);
+                          }}
+                          className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-left text-sm font-semibold text-emerald-800"
+                        >
+                          {markDeliveredLabel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void archiveSelectedChats();
+                            setBulkActionMenuOpen(false);
+                          }}
+                          className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm font-semibold text-slate-800"
+                        >
+                          {archiveLabel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void markSelectedAsOnTheWay();
+                            setBulkActionMenuOpen(false);
+                          }}
+                          className="rounded-xl border border-cyan-300 bg-cyan-50 px-3 py-2 text-left text-sm font-semibold text-cyan-800"
+                        >
+                          {markOnTheWayLabel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void markSelectedAsPackaging();
+                            setBulkActionMenuOpen(false);
+                          }}
+                          className="rounded-xl border border-orange-300 bg-orange-50 px-3 py-2 text-left text-sm font-semibold text-orange-800"
+                        >
+                          {markPackagingLabel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void deleteSelectedChatsForAdmin();
+                            setBulkActionMenuOpen(false);
+                          }}
+                          className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-left text-sm font-semibold text-red-800"
+                        >
+                          {common.delete}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div
@@ -1286,11 +1595,11 @@ export function Admin() {
                   isDarkTheme ? "divide-y divide-slate-800" : "divide-y divide-slate-200"
                 }`}
               >
-                {threads.length === 0 ? (
+                {boardThreads.length === 0 ? (
                   <div
                     className={`flex h-full min-h-[560px] items-center justify-center px-6 text-sm ${chatListEmptyClasses}`}
                   >
-                    {adminCopy.noOrderChats}
+                    {chatBoardView === "archive" ? noArchivedChatsLabel : adminCopy.noOrderChats}
                   </div>
                 ) : filteredThreads.length === 0 ? (
                   <div
@@ -1400,14 +1709,54 @@ export function Admin() {
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="hidden flex-wrap gap-2 md:flex">
+                            <button
+                              type="button"
+                              onClick={markCurrentAsDelivered}
+                              className="rounded-2xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"
+                            >
+                              {markDeliveredLabel}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={archiveCurrentChat}
+                              className="rounded-2xl border border-slate-300 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+                            >
+                              {archiveLabel}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={markCurrentAsOnTheWay}
+                              className="rounded-2xl border border-cyan-300 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-100"
+                            >
+                              {markOnTheWayLabel}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={markCurrentAsPackaging}
+                              className="rounded-2xl border border-orange-300 bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-700 hover:bg-orange-100"
+                            >
+                              {markPackagingLabel}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={deleteCurrentChatForAdmin}
+                              className="rounded-2xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                            >
+                              {common.delete}
+                            </button>
+                          </div>
+
                           <button
                             type="button"
-                            onClick={markCurrentAsShipped}
-                            className="rounded-2xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"
+                            onClick={() => setCurrentActionMenuOpen(true)}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 md:hidden"
+                            aria-label={markMenuHeaderLabel}
                           >
-                            {adminCopy.markShipped}
+                            <i className="fa-solid fa-ellipsis" aria-hidden="true" />
                           </button>
+
                           <button
                             type="button"
                             onClick={closeChat}
@@ -1417,6 +1766,86 @@ export function Admin() {
                           </button>
                         </div>
                       </div>
+
+                      {currentActionMenuOpen ? (
+                        <div
+                          className="fixed inset-0 z-50 md:hidden"
+                          onClick={() => setCurrentActionMenuOpen(false)}
+                        >
+                          <div className="absolute inset-0 bg-slate-950/30" />
+                          <div
+                            className="absolute right-4 top-20 w-64 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">
+                                {markMenuHeaderLabel}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setCurrentActionMenuOpen(false)}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-600"
+                                aria-label={common.close}
+                              >
+                                <i className="fa-solid fa-x" aria-hidden="true" />
+                              </button>
+                            </div>
+
+                            <div className="mt-3 grid gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void markCurrentAsDelivered();
+                                  setCurrentActionMenuOpen(false);
+                                }}
+                                className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-left text-sm font-semibold text-emerald-800"
+                              >
+                                {markDeliveredLabel}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void archiveCurrentChat();
+                                  setCurrentActionMenuOpen(false);
+                                }}
+                                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm font-semibold text-slate-800"
+                              >
+                                {archiveLabel}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void markCurrentAsOnTheWay();
+                                  setCurrentActionMenuOpen(false);
+                                }}
+                                className="rounded-xl border border-cyan-300 bg-cyan-50 px-3 py-2 text-left text-sm font-semibold text-cyan-800"
+                              >
+                                {markOnTheWayLabel}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void markCurrentAsPackaging();
+                                  setCurrentActionMenuOpen(false);
+                                }}
+                                className="rounded-xl border border-orange-300 bg-orange-50 px-3 py-2 text-left text-sm font-semibold text-orange-800"
+                              >
+                                {markPackagingLabel}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void deleteCurrentChatForAdmin();
+                                  setCurrentActionMenuOpen(false);
+                                }}
+                                className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-left text-sm font-semibold text-red-800"
+                              >
+                                {common.delete}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
 
                       <div className="mt-4 grid gap-3 xl:grid-cols-2">
                         <div className="rounded-2xl border border-slate-200 bg-slate-50">

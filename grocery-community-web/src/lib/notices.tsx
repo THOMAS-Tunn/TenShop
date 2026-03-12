@@ -313,7 +313,7 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
             onClick={() => dismissNotice(activeDialog.id)}
             className={clsx(
               "absolute inset-0 transition-opacity duration-200",
-              theme === "dark" ? "bg-slate-950 backdrop-blur-[3px]" : "bg-slate-900 backdrop-blur-[3px]"
+              theme === "dark" ? "bg-slate-950/90 backdrop-blur-[4px]" : "bg-slate-200/90 backdrop-blur-[3px]"
             )}
           />
 

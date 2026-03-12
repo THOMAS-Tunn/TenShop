@@ -73,6 +73,19 @@ export function OrderDetail({ user }: { user: SessionUser }) {
     [order]
   );
 
+  function getStatusClasses(status: string) {
+    if (status === "pending") return "bg-amber-100 text-amber-800 border border-amber-200";
+    if (status === "confirmed") return "bg-blue-100 text-blue-800 border border-blue-200";
+    if (status === "packaging") return "bg-orange-100 text-orange-800 border border-orange-200";
+    if (status === "shipped" || status === "out_for_delivery") {
+      return "bg-cyan-100 text-cyan-800 border border-cyan-200";
+    }
+    if (status === "delivered") return "bg-emerald-100 text-emerald-800 border border-emerald-200";
+    if (status === "cancelled") return "bg-red-100 text-red-800 border border-red-200";
+    if (status === "archived") return "bg-slate-200 text-slate-800 border border-slate-300";
+    return "bg-slate-100 text-slate-700 border border-slate-200";
+  }
+
   async function loadAll() {
     if (!id) return;
 
@@ -251,8 +264,15 @@ export function OrderDetail({ user }: { user: SessionUser }) {
             <div className="text-sm font-semibold">{page.orderSummary}</div>
             {order ? (
               <div className="mt-3 text-sm text-slate-700">
-                <div>
-                  {common.status}: {formatStatus(order.status)}
+                <div className="flex items-center gap-2">
+                  <span>{common.status}:</span>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClasses(
+                      order.status
+                    )}`}
+                  >
+                    {formatStatus(order.status)}
+                  </span>
                 </div>
                 <div className="mt-1">
                   {common.placed}: {formatDateTime(order.created_at)}

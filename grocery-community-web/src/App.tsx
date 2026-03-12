@@ -12,6 +12,7 @@ import { Profile } from "./pages/Profile";
 import { OrderDetail } from "./pages/OrderDetail";
 import { Admin } from "./pages/Admin";
 import { RequireAdmin } from "./components/RequireAdmin";
+import { SkyBackdrop } from "./components/SkyBackdrop";
 
 function RequireAuth({
   user,
@@ -95,71 +96,75 @@ export default function App() {
   const shell = useMemo(() => <Layout user={user} loading={loading} />, [user, loading]);
 
   return (
-    <>
-      {shell}
-      <Routes>
-        <Route
-          path="/admin"
-          element={
-            <RequireAdmin user={user}>
-              <Admin />
-            </RequireAdmin>
-          }
-        />
-        <Route path="/" element={<Home user={user} />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route
-          path="/shop"
-          element={
-            <RequireAuth user={user}>
-              {(u) => <Shop user={u} />}
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/community"
-          element={
-            <RequireAuth user={user}>
-              {(u) => <Community user={u} />}
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/chat"
-          element={
-            <RequireAuth user={user}>
-              {(u) => <Chat user={u} />}
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/cart"
-          element={
-            <RequireAuth user={user}>
-              {(u) => <Cart user={u} />}
-            </RequireAuth>
-          }
-        />
-        <Route path="/carts/:id" element={<LegacyCartRedirect />} />
-        <Route path="/lists/:id" element={<LegacyCartRedirect />} />
-        <Route
-          path="/orders/:id"
-          element={
-            <RequireAuth user={user}>
-              {(u) => <OrderDetail user={u} />}
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/profile"
-          element={
-            <RequireAuth user={user}>
-              {(u) => <Profile user={u} />}
-            </RequireAuth>
-          }
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </>
+    <div className="app-frame">
+      <SkyBackdrop />
+
+      <div className="app-frame__content">
+        {shell}
+        <Routes>
+          <Route
+            path="/admin"
+            element={
+              <RequireAdmin user={user}>
+                <Admin />
+              </RequireAdmin>
+            }
+          />
+          <Route path="/" element={<Home user={user} />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route
+            path="/shop"
+            element={
+              <RequireAuth user={user}>
+                {(u) => <Shop user={u} />}
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/community"
+            element={
+              <RequireAuth user={user}>
+                {(u) => <Community user={u} />}
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/chat"
+            element={
+              <RequireAuth user={user}>
+                {(u) => <Chat user={u} />}
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/cart"
+            element={
+              <RequireAuth user={user}>
+                {(u) => <Cart user={u} />}
+              </RequireAuth>
+            }
+          />
+          <Route path="/carts/:id" element={<LegacyCartRedirect />} />
+          <Route path="/lists/:id" element={<LegacyCartRedirect />} />
+          <Route
+            path="/orders/:id"
+            element={
+              <RequireAuth user={user}>
+                {(u) => <OrderDetail user={u} />}
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <RequireAuth user={user}>
+                {(u) => <Profile user={u} />}
+              </RequireAuth>
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+    </div>
   );
 }

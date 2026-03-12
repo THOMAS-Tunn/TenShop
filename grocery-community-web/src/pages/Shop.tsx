@@ -34,6 +34,15 @@ type PendingItemAction = {
   action: "inc" | "dec" | "remove";
 };
 
+const PRODUCTS_PER_PAGE = 12;
+
+function buildQuantityDrafts(items: ListItem[]) {
+  return items.reduce<Record<string, string>>((drafts, item) => {
+    drafts[item.id] = String(item.qty);
+    return drafts;
+  }, {});
+}
+
 export function Shop({ user }: { user: SessionUser }) {
   const { copy, formatCurrency, formatDateTime } = useAppSettings();
   const notice = useNotice();
@@ -51,7 +60,9 @@ export function Shop({ user }: { user: SessionUser }) {
   const [addingId, setAddingId] = useState<string | null>(null);
   const [deletingListId, setDeletingListId] = useState<string | null>(null);
   const [pendingItemAction, setPendingItemAction] = useState<PendingItemAction | null>(null);
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({});
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [productPage, setProductPage] = useState(1);
 
   useEffect(() => {
     supabase
@@ -123,6 +134,10 @@ export function Shop({ user }: { user: SessionUser }) {
     void loadListItems(selectedListId);
   }, [selectedListId]);
 
+  useEffect(() => {
+    setQuantityDrafts(buildQuantityDrafts(listItems));
+  }, [listItems]);
+
   const filteredProducts = useMemo(() => {
     const query = productSearch.trim().toLowerCase();
     if (!query) return products;
@@ -148,6 +163,24 @@ export function Shop({ user }: { user: SessionUser }) {
 
     return lists.filter((list) => list.name.toLowerCase().includes(query));
   }, [listSearch, lists]);
+
+  const totalProductPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE)),
+    [filteredProducts.length]
+  );
+
+  const paginatedProducts = useMemo(() => {
+    const startIndex = (productPage - 1) * PRODUCTS_PER_PAGE;
+    return filteredProducts.slice(startIndex, startIndex + PRODUCTS_PER_PAGE);
+  }, [filteredProducts, productPage]);
+
+  useEffect(() => {
+    setProductPage(1);
+  }, [productSearch]);
+
+  useEffect(() => {
+    setProductPage((currentPage) => Math.min(currentPage, totalProductPages));
+  }, [totalProductPages]);
 
   async function createList() {
     const nextName = listName.trim() || shop.defaultCartName;
@@ -219,6 +252,7 @@ export function Shop({ user }: { user: SessionUser }) {
 
     const previousItems = listItems;
     setPendingItemAction({ id: item.id, action: nextQty > item.qty ? "inc" : "dec" });
+    setQuantityDrafts((current) => ({ ...current, [item.id]: String(nextQty) }));
     setListItems((current) =>
       current.map((entry) => (entry.id === item.id ? { ...entry, qty: nextQty } : entry))
     );
@@ -240,6 +274,11 @@ export function Shop({ user }: { user: SessionUser }) {
   async function removeListItem(itemId: string) {
     const previousItems = listItems;
     setPendingItemAction({ id: itemId, action: "remove" });
+    setQuantityDrafts((current) => {
+      const next = { ...current };
+      delete next[itemId];
+      return next;
+    });
     setListItems((current) => current.filter((entry) => entry.id !== itemId));
 
     const { error } = await supabase
@@ -254,6 +293,31 @@ export function Shop({ user }: { user: SessionUser }) {
       setListItems(previousItems);
       notice.showError(error.message);
     }
+  }
+
+  function resetQuantityDraft(item: ListItem) {
+    setQuantityDrafts((current) => ({ ...current, [item.id]: String(item.qty) }));
+  }
+
+  async function commitListItemQty(item: ListItem) {
+    const draft = quantityDrafts[item.id]?.trim() ?? String(item.qty);
+    if (!draft) {
+      resetQuantityDraft(item);
+      return;
+    }
+
+    const nextQty = Number.parseInt(draft, 10);
+    if (Number.isNaN(nextQty)) {
+      resetQuantityDraft(item);
+      return;
+    }
+
+    if (nextQty === item.qty) {
+      resetQuantityDraft(item);
+      return;
+    }
+
+    await updateListItemQty(item, nextQty);
   }
 
   async function addProductToList(product: Product) {
@@ -326,7 +390,7 @@ export function Shop({ user }: { user: SessionUser }) {
                 <p className="text-sm text-slate-600">{shop.subtitle}</p>
               </div>
               <div className="text-xs text-slate-500">
-                {common.shownCount(filteredProducts.length, products.length)}
+                {common.shownCount(paginatedProducts.length, products.length)}
               </div>
             </div>
 
@@ -339,17 +403,17 @@ export function Shop({ user }: { user: SessionUser }) {
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {products.length === 0 ? (
-                <Card className="p-5 text-sm text-slate-600 sm:col-span-2 lg:col-span-3">
+                <Card className="p-5 text-sm text-slate-600 sm:col-span-2 lg:col-span-4">
                   {shop.noProductsAvailable}
                 </Card>
               ) : filteredProducts.length === 0 ? (
-                <Card className="p-5 text-sm text-slate-600 sm:col-span-2 lg:col-span-3">
+                <Card className="p-5 text-sm text-slate-600 sm:col-span-2 lg:col-span-4">
                   {shop.noProductsMatch}
                 </Card>
               ) : (
-                filteredProducts.map((product) => (
+                paginatedProducts.map((product) => (
                   <Card
                     key={product.id}
                     className="cursor-pointer p-4 transition hover:-translate-y-0.5 hover:shadow-lg"
@@ -425,6 +489,36 @@ export function Shop({ user }: { user: SessionUser }) {
                 ))
               )}
             </div>
+
+            {filteredProducts.length > 0 ? (
+              <div className="mt-6 flex items-center justify-center gap-4">
+                <button
+                  type="button"
+                  aria-label="Previous page"
+                  disabled={productPage <= 1}
+                  onClick={() => setProductPage((currentPage) => Math.max(1, currentPage - 1))}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <i className="fa-solid fa-chevron-left" aria-hidden="true" />
+                </button>
+
+                <div className="min-w-24 text-center text-sm font-semibold text-slate-700">
+                  {productPage} / {totalProductPages}
+                </div>
+
+                <button
+                  type="button"
+                  aria-label="Next page"
+                  disabled={productPage >= totalProductPages}
+                  onClick={() =>
+                    setProductPage((currentPage) => Math.min(totalProductPages, currentPage + 1))
+                  }
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <i className="fa-solid fa-chevron-right" aria-hidden="true" />
+                </button>
+              </div>
+            ) : null}
           </section>
 
           <aside className="space-y-4">
@@ -588,9 +682,35 @@ export function Shop({ user }: { user: SessionUser }) {
                             >
                               -
                             </button>
-                            <div className="min-w-[3rem] px-3 text-center text-sm font-semibold text-slate-900">
-                              {item.qty}
-                            </div>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              aria-label={item.name}
+                              value={quantityDrafts[item.id] ?? String(item.qty)}
+                              disabled={isPending}
+                              onChange={(event) => {
+                                const nextValue = event.target.value;
+                                if (!/^\d*$/.test(nextValue)) return;
+
+                                setQuantityDrafts((current) => ({
+                                  ...current,
+                                  [item.id]: nextValue,
+                                }));
+                              }}
+                              onBlur={() => void commitListItemQty(item)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.currentTarget.blur();
+                                }
+
+                                if (event.key === "Escape") {
+                                  resetQuantityDraft(item);
+                                  event.currentTarget.blur();
+                                }
+                              }}
+                              className="w-14 border-x border-slate-200 bg-transparent px-2 py-2 text-center text-sm font-semibold text-slate-900 outline-none disabled:opacity-50"
+                            />
                             <button
                               type="button"
                               disabled={isPending}

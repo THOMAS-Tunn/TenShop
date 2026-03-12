@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -93,9 +94,11 @@ const en = {
     pending: "Pending",
     confirmed: "Confirmed",
     shipped: "Shipped",
-    out_for_delivery: "Out for delivery",
+    out_for_delivery: "On the way",
+    packaging: "Packaging",
     delivered: "Delivered",
     cancelled: "Cancelled",
+    archived: "Archive",
   },
   productImageField: {
     noImageSelected: "No image selected",
@@ -303,7 +306,7 @@ const en = {
     customerChatsSubtitle:
       "Search by customer name or order, then use filters for date and total.",
     select: "Select",
-    markShipped: "Mark shipped",
+    markShipped: "Mark delivered",
     searchCustomersPlaceholder: "Search customer name or order #...",
     openFilters: "Open filters",
     advancedFilters: "Advanced Filters",
@@ -315,11 +318,11 @@ const en = {
     noChatsMatch: "No chats match the current filters.",
     selectChatFirst: "Select at least one chat first.",
     confirmMarkSelectedShipped:
-      "Are you sure you want to mark the selected chats as shipped?",
+      "Are you sure you want to mark the selected chats as delivered?",
     confirmHideSelectedChats:
       "Are you sure you want to remove the selected chats from the admin board only?",
     adminNotFound: "Could not find the signed-in admin.",
-    confirmMarkCurrentShipped: "Are you sure you want to mark this order as shipped?",
+    confirmMarkCurrentShipped: "Are you sure you want to mark this order as delivered?",
     imageUploadFailed: "Image upload failed.",
     loadingChat: "Loading chat...",
     orderNotFound: "Order not found.",
@@ -417,8 +420,10 @@ const vi: AppCopy = {
     confirmed: "Đã xác nhận",
     shipped: "Đã gửi hàng",
     out_for_delivery: "Đang giao",
+    packaging: "Packaging",
     delivered: "Đã giao",
     cancelled: "Đã hủy",
+    archived: "Archive",
   },
   productImageField: {
     noImageSelected: "Chưa chọn hình",
@@ -483,7 +488,7 @@ const vi: AppCopy = {
     createPost: "Tạo bài viết",
     titlePlaceholder: "Tiêu đề",
     bodyPlaceholder: "Chia sẻ mẹo, công thức hoặc ưu đãi...",
-    post: "Đăng bài",
+    post: "Đăng",
   },
   chat: {
     title: "Tin nhắn",
@@ -510,12 +515,12 @@ const vi: AppCopy = {
     yourCarts: "Giỏ hàng của bạn",
     selectedCart: "Giỏ hàng được chọn",
     manageCartsSubtitle: "Mo mot gio de xem, hoac chon nhieu gio de xoa.",
-    searchCartsPlaceholder: "Tim gio hang...",
+    searchCartsPlaceholder: "Tìm giỏ hàng...",
     selectACart: "Chọn một giỏ hàng...",
     defaultCartName: "Giỏ hàng của tôi",
     cartName: "Tên giỏ hàng",
     noCartsYet: "Chưa có giỏ hàng nào.",
-    noCartsMatch: "Khong co gio hang phu hop.",
+    noCartsMatch: "Không có giỏ hàng phù hợp.",
     openFullCart: "Mở toàn bộ giỏ hàng",
     cartItems: "Mặt hàng trong giỏ",
     chooseCartToView: "Chọn một giỏ hàng để xem mặt hàng.",
@@ -526,9 +531,9 @@ const vi: AppCopy = {
     deleteCartTitle: "Xóa giỏ hàng",
     close: "Đóng",
     deleteCartConfirm: (name: string) => `Xóa "${name}" cùng toàn bộ mặt hàng bên trong?`,
-    selectCartFirst: "Hay chon it nhat mot gio hang truoc.",
+    selectCartFirst: "Hãy chọn ít nhất một giỏ hàng trước.",
     confirmDeleteSelectedCarts: (count: number) =>
-      `Xoa ${count} gio hang da chon va toan bo mat hang ben trong?`,
+      `Xóa ${count} giỏ hàng đã chọn và toàn bộ mặt hàng bên trong?`,
     createOrSelectCartFirst:
       "Hãy tạo hoặc chọn một giỏ hàng trước ở bên phải rồi mới thêm mặt hàng.",
   },
@@ -738,8 +743,10 @@ const es: AppCopy = {
     confirmed: "Confirmado",
     shipped: "Enviado",
     out_for_delivery: "En reparto",
+    packaging: "Packaging",
     delivered: "Entregado",
     cancelled: "Cancelado",
+    archived: "Archive",
   },
   productImageField: {
     noImageSelected: "No hay imagen seleccionada",
@@ -947,7 +954,7 @@ const es: AppCopy = {
     customerChatsSubtitle:
       "Busca por nombre del cliente o pedido y luego usa filtros por fecha y total.",
     select: "Seleccionar",
-    markShipped: "Marcar enviado",
+    markShipped: "Marcar entregado",
     searchCustomersPlaceholder: "Buscar nombre del cliente o pedido #...",
     openFilters: "Abrir filtros",
     advancedFilters: "Filtros avanzados",
@@ -959,11 +966,11 @@ const es: AppCopy = {
     noChatsMatch: "Ningun chat coincide con los filtros actuales.",
     selectChatFirst: "Selecciona al menos un chat primero.",
     confirmMarkSelectedShipped:
-      "Seguro que quieres marcar los chats seleccionados como enviados?",
+      "Seguro que quieres marcar los chats seleccionados como entregados?",
     confirmHideSelectedChats:
       "Seguro que quieres quitar los chats seleccionados solo del panel de admin?",
     adminNotFound: "No se pudo encontrar al admin conectado.",
-    confirmMarkCurrentShipped: "Seguro que quieres marcar este pedido como enviado?",
+    confirmMarkCurrentShipped: "Seguro que quieres marcar este pedido como entregado?",
     imageUploadFailed: "Fallo la subida de imagen.",
     loadingChat: "Cargando chat...",
     orderNotFound: "Pedido no encontrado.",
@@ -1052,7 +1059,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = language;
   }, [language]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
     document.documentElement.dataset.theme = theme;
   }, [theme]);

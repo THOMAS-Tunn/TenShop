@@ -39,13 +39,19 @@
     --app-input-bg: 15 23 42;
     --app-selection: 28 28 28;
     --app-selection-text: 255 165 0;
-    --app-scrollbar-thumb: 100 116 139;
+    --app-scrollbar-thumb: 148 163 184;
     --app-scrollbar-thumb-hover: 148 163 184;
   }
 
   html {
     background-color: rgb(var(--app-bg));
     scrollbar-gutter: stable;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
   }
 
   body {
@@ -55,6 +61,274 @@
     transition:
       background-color 0.3s ease,
       color 0.3s ease;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  .app-frame {
+    position: relative;
+    min-height: 100vh;
+    isolation: isolate;
+  }
+
+  .app-frame__content {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+  }
+
+  .sky-scene {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    contain: layout paint;
+  }
+
+  .sky-scene__layer,
+  .sky-scene__stars,
+  .sky-scene__clouds,
+  .sky-scene__haze {
+    position: absolute;
+    transition: opacity 0.56s ease-out;
+  }
+
+  .sky-scene__layer {
+    inset: -8% -5% -6%;
+  }
+
+  .sky-scene__layer--day {
+    background:
+      radial-gradient(circle at 79% 12%, rgb(255 255 255 / 0.4) 0 13%, transparent 28%),
+      linear-gradient(
+        180deg,
+        rgb(99 187 255) 0%,
+        rgb(134 208 255) 28%,
+        rgb(182 228 255) 52%,
+        rgb(226 240 252) 74%,
+        rgb(247 250 255) 100%
+    );
+    opacity: 1;
+  }
+
+  .sky-scene__layer--night {
+    background:
+      radial-gradient(circle at 80% -8%, rgb(77 124 255 / 0.24) 0 18%, transparent 42%),
+      linear-gradient(
+        180deg,
+        rgb(2 11 29) 0%,
+        rgb(7 22 50) 24%,
+        rgb(13 34 75) 54%,
+        rgb(17 30 62) 76%,
+        rgb(11 18 39) 100%
+      );
+    opacity: 0;
+  }
+
+  .sky-scene__orbit {
+    position: absolute;
+    aspect-ratio: 1;
+    transform: translate3d(0, 0, 0);
+    transform-origin: center;
+    backface-visibility: hidden;
+    contain: layout paint;
+    will-change: transform;
+  }
+
+  .sky-scene__orbit--sun {
+    top: -8vmin;
+    right: -9vmin;
+    width: 34vmin;
+    border-radius: 50%;
+  }
+
+  .sky-scene__orbit--moon {
+    top: -15vmin;
+    right: -13vmin;
+    width: 36vmin;
+    border-radius: 50%;
+  }
+
+  .sky-scene__sun,
+  .sky-scene__moon {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: 1;
+    border-radius: 999px;
+    backface-visibility: hidden;
+    transition: opacity 0.44s ease-out;
+  }
+
+  .sky-scene__sun {
+    background-image:
+      radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.452) 100px 100%, transparent 20%),
+      url("./assets/sun.jpg");
+    background-position: 42% 34%, 42% 34%;
+    background-repeat: no-repeat;
+    background-size: 108% 108%, cover;
+    box-shadow:
+      0 0 10vmin rgb(255 232 169 / 0.16),
+      0 0 22vmin rgb(255 255 255 / 0.12);
+    filter: blur(2px) brightness(1.16);
+    opacity: 0.78;
+  }
+
+  .sky-scene__moon {
+    background-image:
+      radial-gradient(circle at 35% 28%, rgb(255 255 255 / 0.2) 0 10%, transparent 24%),
+      radial-gradient(circle at 62% 72%, rgb(147 197 253 / 0.08) 0 14%, transparent 30%),
+      url("./assets/_Moon__Poster_for_Sale_by_NomiBee-removebg-preview.png");
+    background-position: center, center, center;
+    background-repeat: no-repeat;
+    background-size: 100% 100%, 100% 100%, cover;
+    box-shadow:
+      0 0 8vmin rgb(190 215 255 / 0.1),
+      0 0 24vmin rgb(96 165 250 / 0.08);
+    filter: grayscale(0.08) brightness(1.04) contrast(0.9);
+    opacity: 0;
+  }
+
+  .sky-scene__sun::before,
+  .sky-scene__sun::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+  }
+
+  .sky-scene__sun::before {
+    inset: -12%;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgb(255 244 200 / 0.18) 0%, transparent 68%);
+    opacity: 0.8;
+  }
+
+  .sky-scene__sun::after {
+    display: none;
+  }
+
+  .sky-scene__orbit--incoming-sun {
+    animation: sky-scene-orbit-in-sun .5s linear both;
+  }
+
+  .sky-scene__orbit--incoming-moon {
+    animation: sky-scene-orbit-in-moon .5s linear both;
+  }
+
+  .sky-scene__stars {
+    inset: 0;
+    opacity: 0;
+  }
+
+  .sky-scene__star {
+    position: absolute;
+    display: block;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.95);
+    filter: brightness(0.82);
+    transform-origin: center;
+    box-shadow:
+      0 0 0.35rem rgb(255 255 255 / 0.82),
+      0 0 0.7rem rgb(191 219 254 / 0.28);
+    animation: sky-scene-twinkle 3.6s ease-in-out infinite alternate;
+  }
+
+  .sky-scene__clouds {
+    left: -8%;
+    width: 116%;
+    background-repeat: no-repeat;
+  }
+
+  .sky-scene__clouds--far {
+    top: 28%;
+    height: 20vh;
+    opacity: 0.35;
+    filter: blur(16px);
+    background-image:
+      radial-gradient(ellipse 14% 26% at 6% 78%, rgb(255 255 255 / 0.58) 0 58%, transparent 60%),
+      radial-gradient(ellipse 17% 30% at 24% 72%, rgb(255 255 255 / 0.52) 0 60%, transparent 62%),
+      radial-gradient(ellipse 13% 24% at 40% 76%, rgb(255 255 255 / 0.5) 0 59%, transparent 61%),
+      radial-gradient(ellipse 18% 28% at 58% 70%, rgb(255 255 255 / 0.5) 0 60%, transparent 62%),
+      radial-gradient(ellipse 15% 24% at 76% 77%, rgb(255 255 255 / 0.48) 0 58%, transparent 60%),
+      radial-gradient(ellipse 18% 28% at 95% 74%, rgb(255 255 255 / 0.56) 0 60%, transparent 62%);
+  }
+
+  .sky-scene__clouds--mid {
+    top: 45%;
+    height: 24vh;
+    opacity: 0.54;
+    filter: blur(20px);
+    background-image:
+      radial-gradient(ellipse 16% 32% at 10% 76%, rgb(255 255 255 / 0.76) 0 58%, transparent 60%),
+      radial-gradient(ellipse 20% 34% at 28% 70%, rgb(255 255 255 / 0.74) 0 60%, transparent 62%),
+      radial-gradient(ellipse 16% 28% at 47% 76%, rgb(255 255 255 / 0.72) 0 58%, transparent 60%),
+      radial-gradient(ellipse 21% 36% at 67% 70%, rgb(255 255 255 / 0.72) 0 60%, transparent 62%),
+      radial-gradient(ellipse 17% 30% at 86% 75%, rgb(255 255 255 / 0.74) 0 58%, transparent 60%);
+  }
+
+  .sky-scene__clouds--near {
+    top: 59%;
+    height: 42vh;
+    opacity: 0.98;
+    filter: blur(24px);
+    background-image:
+      linear-gradient(180deg, rgb(255 255 255 / 0) 0%, rgb(255 255 255 / 0.22) 26%, rgb(255 255 255 / 0.94) 100%),
+      radial-gradient(ellipse 18% 36% at 8% 72%, rgb(255 255 255 / 0.96) 0 59%, transparent 61%),
+      radial-gradient(ellipse 22% 38% at 24% 68%, rgb(255 255 255 / 0.98) 0 60%, transparent 62%),
+      radial-gradient(ellipse 19% 34% at 45% 72%, rgb(255 255 255 / 0.96) 0 59%, transparent 61%),
+      radial-gradient(ellipse 24% 40% at 68% 68%, rgb(255 255 255 / 0.98) 0 60%, transparent 62%),
+      radial-gradient(ellipse 19% 34% at 92% 72%, rgb(255 255 255 / 0.96) 0 59%, transparent 61%);
+  }
+
+  .sky-scene__haze {
+    inset: auto -4% -8% -4%;
+    height: 34vh;
+    background:
+      radial-gradient(circle at 50% 0%, rgb(255 255 255 / 0.24) 0 18%, transparent 56%),
+      linear-gradient(180deg, rgb(255 255 255 / 0) 0%, rgb(255 255 255 / 0.34) 48%, rgb(255 255 255 / 0.68) 100%);
+    opacity: 0.92;
+  }
+  .sky-scene--dark .sky-scene__layer--day {
+    opacity: 0;
+  }
+
+  .sky-scene--dark .sky-scene__layer--night {
+    opacity: 1;
+  }
+
+  .sky-scene--dark .sky-scene__sun {
+    opacity: 0;
+  }
+
+  .sky-scene--dark .sky-scene__moon {
+    opacity: 0.42;
+  }
+
+  .sky-scene--dark .sky-scene__stars {
+    opacity: 1;
+  }
+
+  .sky-scene--dark .sky-scene__clouds--far {
+    opacity: 0.08;
+  }
+
+  .sky-scene--dark .sky-scene__clouds--mid {
+    opacity: 0.05;
+  }
+
+  .sky-scene--dark .sky-scene__clouds--near {
+    opacity: 0;
+  }
+
+  .sky-scene--dark .sky-scene__haze {
+    background:
+      radial-gradient(circle at 50% 0%, rgb(147 197 253 / 0.08) 0 16%, transparent 56%),
+      linear-gradient(180deg, rgb(2 6 23 / 0) 0%, rgb(2 6 23 / 0.18) 48%, rgb(2 6 23 / 0.56) 100%);
+    opacity: 0;
   }
 
   a {
@@ -125,6 +399,75 @@
 
   *::-webkit-scrollbar-corner {
     background: transparent;
+  }
+
+  @media (max-width: 767px) {
+    .sky-scene__orbit--sun,
+    .sky-scene__orbit--moon {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sky-scene__layer,
+    .sky-scene__orbit,
+    .sky-scene__sun,
+    .sky-scene__moon,
+    .sky-scene__stars,
+    .sky-scene__clouds,
+    .sky-scene__haze,
+    .sky-scene__star {
+      animation: none !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@keyframes sky-scene-twinkle {
+  0% {
+    transform: scale(0.92);
+    filter: brightness(0.8);
+  }
+
+  100% {
+    transform: scale(1.24);
+    filter: brightness(1.18);
+  }
+}
+
+@keyframes sky-scene-orbit-in-sun {
+  0% {
+    transform: translate3d(-110vw, 28vh, 0) scale(0.58) rotate(-11deg);
+  }
+
+  54% {
+    transform: translate3d(-56vw, -18vh, 0) scale(0.82) rotate(-3deg);
+  }
+
+  82% {
+    transform: translate3d(-18vw, -7vh, 0) scale(0.95) rotate(1deg);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes sky-scene-orbit-in-moon {
+  0% {
+    transform: translate3d(-108vw, 30vh, 0) scale(0.54) rotate(-10deg);
+  }
+
+  56% {
+    transform: translate3d(-58vw, -16vh, 0) scale(0.8) rotate(-3deg);
+  }
+
+  84% {
+    transform: translate3d(-20vw, -6vh, 0) scale(0.94) rotate(1deg);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
   }
 }
 
