@@ -34,7 +34,14 @@ export function Auth() {
 
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: "https://tenshop.netlify.app",
+          },
+        });
+
         if (error) throw error;
         setMsg(auth.checkEmailMessage);
         setMode("signin");
