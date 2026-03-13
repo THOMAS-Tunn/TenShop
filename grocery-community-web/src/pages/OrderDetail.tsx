@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card } from "../components/Card";
 import { useAppSettings } from "../lib/app-settings";
@@ -58,6 +58,7 @@ export function OrderDetail({ user }: { user: SessionUser }) {
   const notice = useNotice();
   const common = copy.common;
   const page = copy.orderDetail;
+  const deleteChatConfirmSuppressKey = `customer-delete-chat-confirm:${user.id}`;
 
   const [order, setOrder] = useState<Order | null>(null);
   const [items, setItems] = useState<OrderItem[]>([]);
@@ -67,6 +68,7 @@ export function OrderDetail({ user }: { user: SessionUser }) {
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [deletingChat, setDeletingChat] = useState(false);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
 
   const shippingCents = useMemo(
     () => (order ? Math.max(0, order.total_cents - order.subtotal_cents - order.tax_cents) : 0),
@@ -148,6 +150,13 @@ export function OrderDetail({ user }: { user: SessionUser }) {
     };
   }, [id]);
 
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    container.scrollTop = container.scrollHeight;
+  }, [messages]);
+
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault();
     if (!id || !body.trim()) return;
@@ -196,6 +205,8 @@ export function OrderDetail({ user }: { user: SessionUser }) {
       cancelLabel: common.cancel,
       confirmLabel: common.delete,
       variant: "error",
+      suppressKey: deleteChatConfirmSuppressKey,
+      suppressLabel: common.dontShowAgain,
     });
     if (!ok) return;
 
@@ -257,7 +268,7 @@ export function OrderDetail({ user }: { user: SessionUser }) {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
+    <main className="mx-auto max-w-6xl px-4 py-4 lg:py-8">
       <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <div className="space-y-4">
           <Card className="p-5">
@@ -317,59 +328,66 @@ export function OrderDetail({ user }: { user: SessionUser }) {
           </Card>
         </div>
 
-        <Card className="p-5">
-          <div className="text-sm font-semibold">{page.orderChat}</div>
+        <Card className="flex h-[calc(100vh-4.75rem)] flex-col overflow-hidden p-0 lg:h-auto lg:overflow-visible lg:p-5">
+          <div className="border-b border-slate-200 px-5 py-4 lg:border-b-0 lg:px-0 lg:py-0">
+            <div className="text-sm font-semibold">{page.orderChat}</div>
 
-          {order?.admin_deleted_at ? (
-            <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-4">
-              <div className="text-sm font-semibold text-amber-900">{page.adminDeletedTitle}</div>
-              <p className="mt-1 text-sm text-amber-800">{page.adminDeletedBody}</p>
-              <button
-                type="button"
-                onClick={() => void deleteChat()}
-                disabled={deletingChat}
-                className="mt-3 rounded-2xl border border-red-300 bg-red-100 px-4 py-2 text-sm font-semibold text-red-900 hover:bg-red-200 disabled:opacity-60"
-              >
-                {deletingChat ? common.deleting : page.deleteThisChat}
-              </button>
-            </div>
-          ) : null}
+            {order?.admin_deleted_at ? (
+              <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-4">
+                <div className="text-sm font-semibold text-amber-900">{page.adminDeletedTitle}</div>
+                <p className="mt-1 text-sm text-amber-800">{page.adminDeletedBody}</p>
+                <button
+                  type="button"
+                  onClick={() => void deleteChat()}
+                  disabled={deletingChat}
+                  className="mt-3 rounded-2xl border border-red-300 bg-red-100 px-4 py-2 text-sm font-semibold text-red-900 hover:bg-red-200 disabled:opacity-60"
+                >
+                  {deletingChat ? common.deleting : page.deleteThisChat}
+                </button>
+              </div>
+            ) : null}
+          </div>
 
-          <div className="mt-4 space-y-3">
+          <div
+            ref={messagesContainerRef}
+            className="min-h-0 flex-1 overflow-y-auto bg-slate-50 px-4 py-4 lg:mt-4 lg:flex-none lg:overflow-visible lg:rounded-3xl lg:bg-transparent lg:px-0 lg:py-0"
+          >
             {messages.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-600">
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-6 text-sm text-slate-600">
                 {page.noMessagesYet}
               </div>
             ) : (
-              messages.map((message) => (
-                <div key={message.id} className="rounded-2xl border px-4 py-3">
-                  <div className="flex items-center gap-2 text-xs">
-                    <span
-                      className={`rounded-full px-2 py-0.5 font-semibold ${
-                        message.sender_user_id === user.id
-                          ? "bg-slate-200 text-slate-800"
-                          : "bg-blue-100 text-blue-900"
-                      }`}
-                    >
-                      {message.sender_user_id === user.id ? common.you : common.admin}
-                    </span>
-                    <span className="text-slate-600">{formatDateTime(message.created_at)}</span>
-                  </div>
+              <div className="space-y-3">
+                {messages.map((message) => (
+                  <div key={message.id} className="rounded-2xl border bg-white px-4 py-3">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span
+                        className={`rounded-full px-2 py-0.5 font-semibold ${
+                          message.sender_user_id === user.id
+                            ? "bg-slate-200 text-slate-800"
+                            : "bg-blue-100 text-blue-900"
+                        }`}
+                      >
+                        {message.sender_user_id === user.id ? common.you : common.admin}
+                      </span>
+                      <span className="text-slate-600">{formatDateTime(message.created_at)}</span>
+                    </div>
 
-                  <div className="mt-2">
-                    {message.message_type === "address" ? renderAddress(message.address_id) : null}
-                    {message.message_type !== "address" ? (
-                      <div className="text-sm text-slate-800">
-                        {formatStoredMessage(message.message_type, message.body)}
-                      </div>
-                    ) : null}
+                    <div className="mt-2">
+                      {message.message_type === "address" ? renderAddress(message.address_id) : null}
+                      {message.message_type !== "address" ? (
+                        <div className="text-sm text-slate-800">
+                          {formatStoredMessage(message.message_type, message.body)}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
 
-          <div className="mt-5">
+          <div className="border-t border-slate-200 bg-white px-4 py-4 lg:mt-5 lg:border-t-0 lg:px-0 lg:py-0">
             <div className="mb-2 flex flex-wrap gap-2">
               {savedAddresses.map((address) => (
                 <button

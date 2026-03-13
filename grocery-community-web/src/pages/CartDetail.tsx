@@ -53,11 +53,86 @@ export function CartDetail({ user }: { user: SessionUser }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Product[]>([]);
   const [searching, setSearching] = useState(false);
+  const [productImageById, setProductImageById] = useState<Record<string, string>>({});
+  const [productImageByName, setProductImageByName] = useState<Record<string, string>>({});
 
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
   const [customerNote, setCustomerNote] = useState("");
   const [submittingOrder, setSubmittingOrder] = useState(false);
+
+  function mergeProductImages(products: Array<Pick<Product, "id" | "name" | "image_url">>) {
+    setProductImageById((current) => {
+      const next = { ...current };
+      for (const product of products) {
+        if (product.image_url) {
+          next[product.id] = product.image_url;
+        }
+      }
+      return next;
+    });
+
+    setProductImageByName((current) => {
+      const next = { ...current };
+      for (const product of products) {
+        if (product.image_url && !(product.name in next)) {
+          next[product.name] = product.image_url;
+        }
+      }
+      return next;
+    });
+  }
+
+  async function syncItemImages(nextItems: Array<Pick<CartItem, "product_id" | "name">>) {
+    const missingIds = Array.from(
+      new Set(
+        nextItems.map((item) => item.product_id).filter((id): id is string => !!id && !productImageById[id])
+      )
+    );
+    const missingNames = Array.from(
+      new Set(
+        nextItems
+          .map((item) => item.name.trim())
+          .filter((name) => !!name && !(name in productImageByName))
+      )
+    );
+
+    const productRows: Array<Pick<Product, "id" | "name" | "image_url">> = [];
+
+    if (missingIds.length > 0) {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id,name,image_url")
+        .in("id", missingIds);
+
+      if (!error) {
+        productRows.push(...((data ?? []) as Array<Pick<Product, "id" | "name" | "image_url">>));
+      }
+    }
+
+    if (missingNames.length > 0) {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id,name,image_url")
+        .in("name", missingNames);
+
+      if (!error) {
+        productRows.push(...((data ?? []) as Array<Pick<Product, "id" | "name" | "image_url">>));
+      }
+    }
+
+    if (productRows.length > 0) {
+      mergeProductImages(productRows);
+    }
+  }
+
+  function getItemImageUrl(item: Pick<CartItem, "product_id" | "name">) {
+    if (item.product_id && productImageById[item.product_id]) {
+      return productImageById[item.product_id];
+    }
+
+    return productImageByName[item.name] ?? null;
+  }
 
   async function loadItems() {
     if (!cartId) return;
@@ -75,7 +150,9 @@ export function CartDetail({ user }: { user: SessionUser }) {
       console.error(error);
     }
 
-    setItems((data ?? []) as CartItem[]);
+    const nextItems = (data ?? []) as CartItem[];
+    setItems(nextItems);
+    await syncItemImages(nextItems);
     setLoading(false);
   }
 
@@ -130,7 +207,9 @@ export function CartDetail({ user }: { user: SessionUser }) {
         console.error(error);
       }
 
-      setResults((data ?? []) as Product[]);
+      const nextResults = (data ?? []) as Product[];
+      setResults(nextResults);
+      mergeProductImages(nextResults);
       setSearching(false);
     }, 250);
 
@@ -189,6 +268,7 @@ export function CartDetail({ user }: { user: SessionUser }) {
       return;
     }
 
+    mergeProductImages([product]);
     setItems((prev) =>
       [...prev, inserted as CartItem].sort((left, right) => left.name.localeCompare(right.name))
     );
@@ -385,51 +465,75 @@ export function CartDetail({ user }: { user: SessionUser }) {
             <div className="mt-3 text-sm text-slate-600">{page.noItemsYet}</div>
           ) : (
             <div className="mt-3 space-y-3">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between gap-3 rounded-2xl border px-3 py-3"
-                >
-                  <div>
-                    <div className="text-sm font-medium">{item.name}</div>
-                    <div className="text-xs text-slate-500">
-                      {item.price_cents != null ? formatCurrency(item.price_cents) : page.noPrice}
+              {items.map((item) => {
+                const itemImageUrl = getItemImageUrl(item);
+
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded-2xl border px-3 py-3"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
+                        {itemImageUrl ? (
+                          <img
+                            src={itemImageUrl}
+                            alt={item.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center px-2 text-center text-[11px] font-medium text-slate-400">
+                            {common.noImage}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium">{item.name}</div>
+                          <div className="text-xs text-slate-500">
+                            {item.price_cents != null ? formatCurrency(item.price_cents) : page.noPrice}
+                          </div>
+                        </div>
+
+                        <div className="text-right text-sm font-semibold">
+                          {formatCurrency((item.price_cents ?? 0) * item.qty)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void changeQty(item.id, -1)}
+                          className="h-9 w-9 rounded-xl border text-sm font-semibold hover:bg-slate-50"
+                        >
+                          -
+                        </button>
+
+                        <div className="w-10 text-center text-sm font-medium">{item.qty}</div>
+
+                        <button
+                          type="button"
+                          onClick={() => void changeQty(item.id, 1)}
+                          className="h-9 w-9 rounded-xl border text-sm font-semibold hover:bg-slate-50"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => void removeItem(item.id)}
+                        className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+                      >
+                        {page.remove}
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void changeQty(item.id, -1)}
-                      className="h-9 w-9 rounded-xl border text-sm font-semibold hover:bg-slate-50"
-                    >
-                      -
-                    </button>
-
-                    <div className="w-10 text-center text-sm font-medium">{item.qty}</div>
-
-                    <button
-                      type="button"
-                      onClick={() => void changeQty(item.id, 1)}
-                      className="h-9 w-9 rounded-xl border text-sm font-semibold hover:bg-slate-50"
-                    >
-                      +
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => void removeItem(item.id)}
-                      className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
-                    >
-                      {page.remove}
-                    </button>
-
-                    <div className="w-24 text-right text-sm font-semibold">
-                      {formatCurrency((item.price_cents ?? 0) * item.qty)}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Card>

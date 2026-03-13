@@ -113,7 +113,21 @@ on public.posts for update
 to authenticated
 using (auth.uid() = user_id);
 
-create policy "posts delete by owner"
+drop policy if exists "posts delete by owner" on public.posts;
+drop policy if exists "posts delete by owner within 24h or admin" on public.posts;
+
+create policy "posts delete by owner within 24h or admin"
 on public.posts for delete
 to authenticated
-using (auth.uid() = user_id);
+using (
+  (
+    auth.uid() = user_id
+    and created_at >= now() - interval '24 hours'
+  )
+  or exists (
+    select 1
+    from public.profiles
+    where profiles.id = auth.uid()
+      and profiles.is_admin = true
+  )
+);

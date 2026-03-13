@@ -37,6 +37,7 @@ export function Chat({ user }: { user: SessionUser }) {
   const [lastMessageMap, setLastMessageMap] = useState<Record<string, OrderMessage | null>>({});
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const deleteChatConfirmSuppressKey = `customer-delete-chat-confirm:${user.id}`;
 
   function getStatusClasses(status: string) {
     if (status === "pending") {
@@ -84,8 +85,9 @@ export function Chat({ user }: { user: SessionUser }) {
     return formatStoredMessage(lastMessage.message_type, lastMessage.body) || page.newUpdate;
   }
 
-  async function loadChats() {
-    setLoading(true);
+  async function loadChats(options?: { showLoader?: boolean }) {
+    const showLoader = options?.showLoader ?? false;
+    if (showLoader) setLoading(true);
 
     const { data: orderData, error: orderError } = await supabase
       .from("orders")
@@ -142,6 +144,8 @@ export function Chat({ user }: { user: SessionUser }) {
       cancelLabel: common.cancel,
       confirmLabel: common.delete,
       variant: "error",
+      suppressKey: deleteChatConfirmSuppressKey,
+      suppressLabel: common.dontShowAgain,
     });
     if (!ok) return;
 
@@ -176,11 +180,17 @@ export function Chat({ user }: { user: SessionUser }) {
       return;
     }
 
-    await loadChats();
+    setOrders((prev) => prev.filter((order) => order.id !== orderId));
+    setLastMessageMap((prev) => {
+      if (!(orderId in prev)) return prev;
+      const next = { ...prev };
+      delete next[orderId];
+      return next;
+    });
   }
 
   useEffect(() => {
-    void loadChats();
+    void loadChats({ showLoader: true });
 
     const channel = supabase
       .channel(`customer-chats-${user.id}`)

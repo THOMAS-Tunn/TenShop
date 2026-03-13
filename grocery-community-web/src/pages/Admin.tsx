@@ -48,6 +48,14 @@ type OrderMessage = {
   created_at: string;
 };
 
+type CommunityPost = {
+  id: string;
+  user_id: string;
+  title: string;
+  body: string;
+  created_at: string;
+};
+
 type Address = {
   id: string;
   label: string | null;
@@ -90,15 +98,16 @@ export function Admin() {
   const money = formatCurrency;
   const isDarkTheme = theme === "dark";
   const markDeliveredLabel = adminCopy.markShipped;
-  const markOnTheWayLabel = "On the way";
-  const markPackagingLabel = "Packaging";
-  const archiveLabel = "Archive";
-  const ordersTabLabel = "Orders";
-  const archiveTabLabel = "Archive";
-  const selectAllLabel = "Select All";
-  const allStatusesLabel = "All statuses";
-  const markMenuHeaderLabel = "Mark";
-  const noArchivedChatsLabel = "No archived chats yet.";
+  const markOnTheWayLabel = adminCopy.markOnTheWay;
+  const markPackagingLabel = adminCopy.markPackaging;
+  const archiveLabel = adminCopy.archive;
+  const ordersTabLabel = adminCopy.ordersTab;
+  const archiveTabLabel = adminCopy.archiveTab;
+  const postsTabLabel = adminCopy.postsTab;
+  const selectAllLabel = adminCopy.selectAll;
+  const allStatusesLabel = adminCopy.allStatuses;
+  const markMenuHeaderLabel = adminCopy.mark;
+  const noArchivedChatsLabel = adminCopy.noArchivedChats;
 
   const [items, setItems] = useState<Product[]>([]);
   const [name, setName] = useState("");
@@ -115,6 +124,8 @@ export function Admin() {
   const [editPropertiesInput, setEditPropertiesInput] = useState("");
 
   const [threads, setThreads] = useState<OrderRow[]>([]);
+  const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const [postAuthorMap, setPostAuthorMap] = useState<Record<string, string>>({});
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<OrderRow | null>(null);
   const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
@@ -125,16 +136,21 @@ export function Admin() {
 
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
+  const [isSelectingPosts, setIsSelectingPosts] = useState(false);
+  const [selectedPostIds, setSelectedPostIds] = useState<string[]>([]);
 
   const [replyBody, setReplyBody] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [deletingSelectedPosts, setDeletingSelectedPosts] = useState(false);
+  const [deletingPostIds, setDeletingPostIds] = useState<string[]>([]);
   const [uploadingNewImage, setUploadingNewImage] = useState(false);
   const [uploadingEditImage, setUploadingEditImage] = useState(false);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isAddressOpen, setIsAddressOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"chat" | "items">("chat");
-  const [chatBoardView, setChatBoardView] = useState<"orders" | "archive">("orders");
+  const [chatBoardView, setChatBoardView] = useState<"orders" | "archive" | "posts">("orders");
   const [chatStatusFilter, setChatStatusFilter] = useState("");
   const [bulkActionMenuOpen, setBulkActionMenuOpen] = useState(false);
   const [currentActionMenuOpen, setCurrentActionMenuOpen] = useState(false);
@@ -143,6 +159,8 @@ export function Admin() {
   const [chatSearch, setChatSearch] = useState("");
   const [chatDateFrom, setChatDateFrom] = useState("");
   const [chatDateTo, setChatDateTo] = useState("");
+  const [postDateFrom, setPostDateFrom] = useState("");
+  const [postDateTo, setPostDateTo] = useState("");
   const [chatMinTotal, setChatMinTotal] = useState("");
   const [chatMaxTotal, setChatMaxTotal] = useState("");
   const [chatFilterOpen, setChatFilterOpen] = useState(false);
@@ -158,6 +176,10 @@ export function Admin() {
     const profile = profileMap[order.user_id];
     if (profile?.full_name?.trim()) return profile.full_name;
     return common.customerId(order.user_id);
+  }
+
+  function getPostAuthorLabel(post: CommunityPost) {
+    return postAuthorMap[post.user_id] ?? common.customerId(post.user_id);
   }
 
   function getStatusClasses(status: string) {
@@ -249,9 +271,13 @@ export function Admin() {
 
   const boardThreads = useMemo(
     () =>
-      threads.filter((thread) =>
-        chatBoardView === "archive" ? thread.status === "archived" : thread.status !== "archived"
-      ),
+      chatBoardView === "posts"
+        ? []
+        : threads.filter((thread) =>
+            chatBoardView === "archive"
+              ? thread.status === "archived"
+              : thread.status !== "archived"
+          ),
     [threads, chatBoardView]
   );
 
@@ -305,6 +331,27 @@ export function Admin() {
     profileMap,
   ]);
 
+  const filteredPosts = useMemo(() => {
+    const query = chatSearch.trim().toLowerCase();
+    const fromDate = postDateFrom ? new Date(`${postDateFrom}T00:00:00`) : null;
+    const toDate = postDateTo ? new Date(`${postDateTo}T23:59:59.999`) : null;
+
+    return posts.filter((post) => {
+      if (query) {
+        const haystack = [post.title, post.body, getPostAuthorLabel(post)].join(" ").toLowerCase();
+        if (!haystack.includes(query)) {
+          return false;
+        }
+      }
+
+      const createdAt = new Date(post.created_at);
+      if (fromDate && createdAt < fromDate) return false;
+      if (toDate && createdAt > toDate) return false;
+
+      return true;
+    });
+  }, [chatSearch, postDateFrom, postDateTo, common, postAuthorMap, posts]);
+
   async function loadProducts() {
     const { data, error } = await supabase.from("products").select("*").order("name");
 
@@ -352,6 +399,56 @@ export function Admin() {
     if (selectedChatId && !next.some((thread) => thread.id === selectedChatId)) {
       closeChat();
     }
+  }
+
+  async function loadPosts(options?: { showLoader?: boolean }) {
+    const showLoader = options?.showLoader ?? false;
+    if (showLoader) {
+      setLoadingPosts(true);
+    }
+
+    const { data, error } = await supabase
+      .from("posts")
+      .select("id, user_id, title, body, created_at")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      notice.showError(error.message);
+      setLoadingPosts(false);
+      return;
+    }
+
+    const nextPosts = (data ?? []) as CommunityPost[];
+    setPosts(nextPosts);
+    setSelectedPostIds((current) => current.filter((id) => nextPosts.some((post) => post.id === id)));
+
+    const userIds = Array.from(new Set(nextPosts.map((post) => post.user_id).filter(Boolean)));
+    if (userIds.length === 0) {
+      setPostAuthorMap({});
+      setLoadingPosts(false);
+      return;
+    }
+
+    const { data: profileData, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", userIds);
+
+    if (profileError) {
+      notice.showError(profileError.message);
+      setPostAuthorMap({});
+      setLoadingPosts(false);
+      return;
+    }
+
+    const nextAuthorMap: Record<string, string> = {};
+    for (const profile of (profileData ?? []) as Array<Pick<Profile, "id" | "full_name">>) {
+      if (profile.full_name?.trim()) {
+        nextAuthorMap[profile.id] = profile.full_name.trim();
+      }
+    }
+    setPostAuthorMap(nextAuthorMap);
+    setLoadingPosts(false);
   }
 
   async function syncAddressMap(order: Pick<OrderRow, "address_id"> | null, messages: OrderMessage[]) {
@@ -447,6 +544,7 @@ export function Admin() {
   useEffect(() => {
     void loadProducts();
     void loadThreads();
+    void loadPosts({ showLoader: true });
   }, []);
 
   useEffect(() => {
@@ -464,7 +562,29 @@ export function Admin() {
   }, [activeTab]);
 
   useEffect(() => {
+    if (chatBoardView !== "posts") return;
+    closeChat();
+    setIsSelecting(false);
+    setSelectedBulkIds([]);
+    setIsSelectingPosts(false);
+    setSelectedPostIds([]);
+    setBulkActionMenuOpen(false);
+    setCurrentActionMenuOpen(false);
+    setChatFilterOpen(false);
+  }, [chatBoardView]);
+
+  useEffect(() => {
+    if (chatBoardView === "posts") return;
+    setIsSelectingPosts(false);
+    setSelectedPostIds([]);
+  }, [chatBoardView]);
+
+  useEffect(() => {
     if (!selectedChatId) return;
+    if (chatBoardView === "posts") {
+      closeChat();
+      return;
+    }
 
     const selectedThread = threads.find((thread) => thread.id === selectedChatId);
     if (!selectedThread) return;
@@ -541,6 +661,9 @@ export function Admin() {
           }
         }
       )
+      .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, () => {
+        void loadPosts();
+      })
       .subscribe();
 
     return () => {
@@ -648,6 +771,117 @@ export function Admin() {
     await loadProducts();
   }
 
+  function togglePostSelection(postId: string) {
+    setSelectedPostIds((prev) =>
+      prev.includes(postId) ? prev.filter((id) => id !== postId) : [...prev, postId]
+    );
+  }
+
+  function startSelectingPosts() {
+    setIsSelectingPosts(true);
+    setSelectedPostIds([]);
+    setBulkActionMenuOpen(false);
+    setChatFilterOpen(false);
+  }
+
+  function cancelSelectingPosts() {
+    setIsSelectingPosts(false);
+    setSelectedPostIds([]);
+    setBulkActionMenuOpen(false);
+  }
+
+  function selectAllFilteredPosts() {
+    setSelectedPostIds(filteredPosts.map((post) => post.id));
+  }
+
+  async function deletePostsForAdmin(
+    postIds: string[],
+    options?: { deletingIds?: string[]; successMessage?: string }
+  ) {
+    const previousPosts = posts;
+    const previousSelectedPostIds = selectedPostIds;
+    const deletingIds = options?.deletingIds ?? [];
+    const uniquePostIds = Array.from(new Set(postIds));
+
+    if (deletingIds.length > 0) {
+      setDeletingPostIds((current) => Array.from(new Set([...current, ...deletingIds])));
+    } else {
+      setDeletingSelectedPosts(true);
+    }
+
+    setPosts((current) => current.filter((post) => !uniquePostIds.includes(post.id)));
+    setSelectedPostIds((current) => current.filter((id) => !uniquePostIds.includes(id)));
+
+    const { data: deletedRows, error } = await supabase
+      .from("posts")
+      .delete()
+      .in("id", uniquePostIds)
+      .select("id");
+
+    if (deletingIds.length > 0) {
+      setDeletingPostIds((current) => current.filter((id) => !deletingIds.includes(id)));
+    } else {
+      setDeletingSelectedPosts(false);
+    }
+
+    if (error) {
+      setPosts(previousPosts);
+      setSelectedPostIds(previousSelectedPostIds);
+      notice.showError(error.message);
+      return false;
+    }
+
+    if ((deletedRows ?? []).length !== uniquePostIds.length) {
+      setPosts(previousPosts);
+      setSelectedPostIds(previousSelectedPostIds);
+      notice.showWarning(adminCopy.somePostsDeleteFailed);
+      await loadPosts();
+      return false;
+    }
+
+    if (!deletingIds.length) {
+      cancelSelectingPosts();
+    }
+
+    if (options?.successMessage) {
+      notice.showSuccess(options.successMessage);
+    }
+
+    return true;
+  }
+
+  async function deleteSelectedPostsForAdmin() {
+    if (selectedPostIds.length === 0) {
+      notice.showWarning(adminCopy.selectPostFirst);
+      return;
+    }
+
+    const ok = await notice.confirm(adminCopy.confirmDeleteSelectedPosts(selectedPostIds.length), {
+      cancelLabel: common.cancel,
+      confirmLabel: common.delete,
+      variant: "error",
+    });
+    if (!ok) return;
+
+    await deletePostsForAdmin(selectedPostIds, {
+      successMessage: adminCopy.postsDeleted(selectedPostIds.length),
+    });
+  }
+
+  async function deleteSinglePostForAdmin(post: CommunityPost) {
+    const ok = await notice.confirm(adminCopy.confirmDeletePost(post.title), {
+      cancelLabel: common.cancel,
+      confirmLabel: common.delete,
+      variant: "error",
+    });
+    if (!ok) return;
+
+    await deletePostsForAdmin([post.id], {
+      deletingIds: [post.id],
+      successMessage: adminCopy.postDeleted,
+    });
+  }
+
   function toggleBulkSelection(orderId: string) {
     setSelectedBulkIds((prev) =>
       prev.includes(orderId) ? prev.filter((id) => id !== orderId) : [...prev, orderId]
@@ -712,14 +946,11 @@ export function Admin() {
       return;
     }
 
-    const ok = await notice.confirm(
-      `Are you sure you want to mark the selected chats as ${formatStatus(nextStatus)}?`,
-      {
-        cancelLabel: common.cancel,
-        confirmLabel: actionLabel,
-        variant: "success",
-      }
-    );
+    const ok = await notice.confirm(adminCopy.confirmMarkSelectedStatus(formatStatus(nextStatus)), {
+      cancelLabel: common.cancel,
+      confirmLabel: actionLabel,
+      variant: "success",
+    });
     if (!ok) return;
 
     const updated = await updateOrderStatuses(selectedBulkIds, nextStatus);
@@ -781,7 +1012,7 @@ export function Admin() {
   async function applyStatusToCurrentChat(nextStatus: string, actionLabel: string) {
     if (!selectedChatId) return;
 
-    const ok = await notice.confirm(`Are you sure you want to mark this order as ${formatStatus(nextStatus)}?`, {
+    const ok = await notice.confirm(adminCopy.confirmMarkCurrentStatus(formatStatus(nextStatus)), {
       cancelLabel: common.cancel,
       confirmLabel: actionLabel,
       variant: "success",
@@ -961,11 +1192,13 @@ export function Admin() {
     ? Math.max(0, selectedOrder.total_cents - selectedOrder.subtotal_cents - selectedOrder.tax_cents)
     : 0;
   const hasAdvancedChatFilters =
-    !!chatDateFrom ||
-    !!chatDateTo ||
-    !!chatMinTotal.trim() ||
-    !!chatMaxTotal.trim() ||
-    !!chatStatusFilter;
+    chatBoardView === "posts"
+      ? !!postDateFrom || !!postDateTo
+      : !!chatDateFrom ||
+        !!chatDateTo ||
+        !!chatMinTotal.trim() ||
+        !!chatMaxTotal.trim() ||
+        !!chatStatusFilter;
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-10">
@@ -1247,7 +1480,9 @@ export function Admin() {
         {activeTab === "chat" ? (
           <div
             className={`grid gap-4 ${
-              selectedChatId ? "grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)]" : "grid-cols-1"
+              chatBoardView !== "posts" && selectedChatId
+                ? "grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)]"
+                : "grid-cols-1"
             }`}
           >
             <Card
@@ -1256,9 +1491,13 @@ export function Admin() {
               <div className={`px-5 py-4 ${chatListHeaderClasses}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-semibold">{adminCopy.customerChats}</h2>
+                    <h2 className="text-lg font-semibold">
+                      {chatBoardView === "posts" ? adminCopy.communityPosts : adminCopy.customerChats}
+                    </h2>
                     <p className={`mt-1 text-sm ${chatListSubtitleClasses}`}>
-                      {adminCopy.customerChatsSubtitle}
+                      {chatBoardView === "posts"
+                        ? adminCopy.communityPostsSubtitle
+                        : adminCopy.customerChatsSubtitle}
                     </p>
                     <div className="mt-3 inline-flex rounded-full border border-slate-300 bg-slate-100 p-1 shadow-sm">
                       <button
@@ -1283,10 +1522,60 @@ export function Admin() {
                       >
                         {archiveTabLabel}
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setChatBoardView("posts")}
+                        className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                          chatBoardView === "posts"
+                            ? "bg-slate-900 text-white"
+                            : "text-slate-700 hover:bg-white hover:text-slate-900"
+                        }`}
+                      >
+                        {postsTabLabel}
+                      </button>
                     </div>
                   </div>
 
-                  {!isSelecting ? (
+                  {chatBoardView === "posts" ? (
+                    !isSelectingPosts ? (
+                      <button
+                        type="button"
+                        onClick={startSelectingPosts}
+                        className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm hover:bg-slate-100"
+                      >
+                        {adminCopy.select}
+                      </button>
+                    ) : (
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={selectAllFilteredPosts}
+                          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm hover:bg-slate-100"
+                        >
+                          {selectAllLabel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void deleteSelectedPostsForAdmin()}
+                          disabled={deletingSelectedPosts}
+                          className="rounded-xl border border-red-300 bg-red-100 px-3 py-2 text-xs font-semibold text-red-900 shadow-sm hover:bg-red-200 disabled:opacity-60"
+                        >
+                          {deletingSelectedPosts ? common.deleting : common.delete}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelSelectingPosts}
+                          aria-label={common.cancel}
+                          title={common.cancel}
+                          className={`inline-flex h-9 w-9 items-center justify-center transition ${
+                            isDarkTheme ? "text-slate-300 hover:text-white" : "text-slate-500 hover:text-slate-900"
+                          }`}
+                        >
+                          <i className="fa-solid fa-xmark" aria-hidden="true" />
+                        </button>
+                      </div>
+                    )
+                  ) : !isSelecting ? (
                     <button
                       type="button"
                       onClick={startSelecting}
@@ -1295,20 +1584,13 @@ export function Admin() {
                       {adminCopy.select}
                     </button>
                   ) : (
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                       <button
                         type="button"
                         onClick={selectAllFilteredChats}
                         className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm hover:bg-slate-100"
                       >
                         {selectAllLabel}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelSelecting}
-                        className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-sm hover:bg-slate-100"
-                      >
-                        {common.cancel}
                       </button>
                       <div className="hidden flex-wrap gap-2 md:flex">
                         <button
@@ -1354,6 +1636,17 @@ export function Admin() {
                       >
                         <i className="fa-solid fa-ellipsis" aria-hidden="true" />
                       </button>
+                      <button
+                        type="button"
+                        onClick={cancelSelecting}
+                        aria-label={common.cancel}
+                        title={common.cancel}
+                        className={`inline-flex h-9 w-9 items-center justify-center transition ${
+                          isDarkTheme ? "text-slate-300 hover:text-white" : "text-slate-500 hover:text-slate-900"
+                        }`}
+                      >
+                        <i className="fa-solid fa-xmark" aria-hidden="true" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1363,7 +1656,11 @@ export function Admin() {
                     <input
                       value={chatSearch}
                       onChange={(e) => setChatSearch(e.target.value)}
-                      placeholder={adminCopy.searchCustomersPlaceholder}
+                      placeholder={
+                        chatBoardView === "posts"
+                          ? adminCopy.searchPostsPlaceholder
+                          : adminCopy.searchCustomersPlaceholder
+                      }
                       className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                     />
 
@@ -1409,8 +1706,12 @@ export function Admin() {
                           </label>
                           <input
                             type="date"
-                            value={chatDateFrom}
-                            onChange={(e) => setChatDateFrom(e.target.value)}
+                            value={chatBoardView === "posts" ? postDateFrom : chatDateFrom}
+                            onChange={(e) =>
+                              chatBoardView === "posts"
+                                ? setPostDateFrom(e.target.value)
+                                : setChatDateFrom(e.target.value)
+                            }
                             className={chatFilterInputClasses}
                           />
                         </div>
@@ -1421,67 +1722,81 @@ export function Admin() {
                           </label>
                           <input
                             type="date"
-                            value={chatDateTo}
-                            onChange={(e) => setChatDateTo(e.target.value)}
+                            value={chatBoardView === "posts" ? postDateTo : chatDateTo}
+                            onChange={(e) =>
+                              chatBoardView === "posts"
+                                ? setPostDateTo(e.target.value)
+                                : setChatDateTo(e.target.value)
+                            }
                             className={chatFilterInputClasses}
                           />
                         </div>
 
-                        <div>
-                          <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
-                            {common.status}
-                          </label>
-                          <select
-                            value={chatStatusFilter}
-                            onChange={(e) => setChatStatusFilter(e.target.value)}
-                            className={chatFilterInputClasses}
-                          >
-                            <option value="">{allStatusesLabel}</option>
-                            {statusFilterOptions.map((status) => (
-                              <option key={status} value={status}>
-                                {formatStatus(status)}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                        {chatBoardView === "posts" ? null : (
+                          <>
+                            <div>
+                              <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
+                                {common.status}
+                              </label>
+                              <select
+                                value={chatStatusFilter}
+                                onChange={(e) => setChatStatusFilter(e.target.value)}
+                                className={chatFilterInputClasses}
+                              >
+                                <option value="">{allStatusesLabel}</option>
+                                {statusFilterOptions.map((status) => (
+                                  <option key={status} value={status}>
+                                    {formatStatus(status)}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
-                              {adminCopy.minTotal}
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={chatMinTotal}
-                              onChange={(e) => setChatMinTotal(e.target.value)}
-                              placeholder="0.00"
-                              className={`${chatFilterInputClasses} placeholder:text-slate-400`}
-                            />
-                          </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
+                                  {adminCopy.minTotal}
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={chatMinTotal}
+                                  onChange={(e) => setChatMinTotal(e.target.value)}
+                                  placeholder="0.00"
+                                  className={`${chatFilterInputClasses} placeholder:text-slate-400`}
+                                />
+                              </div>
 
-                          <div>
-                            <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
-                              {adminCopy.maxTotal}
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={chatMaxTotal}
-                              onChange={(e) => setChatMaxTotal(e.target.value)}
-                              placeholder="999.99"
-                              className={`${chatFilterInputClasses} placeholder:text-slate-400`}
-                            />
-                          </div>
-                        </div>
+                              <div>
+                                <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
+                                  {adminCopy.maxTotal}
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={chatMaxTotal}
+                                  onChange={(e) => setChatMaxTotal(e.target.value)}
+                                  placeholder="999.99"
+                                  className={`${chatFilterInputClasses} placeholder:text-slate-400`}
+                                />
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
 
                       <div className="mt-4 flex items-center justify-between gap-2">
                         <button
                           type="button"
                           onClick={() => {
+                            if (chatBoardView === "posts") {
+                              setPostDateFrom("");
+                              setPostDateTo("");
+                              return;
+                            }
+
                             setChatDateFrom("");
                             setChatDateTo("");
                             setChatStatusFilter("");
@@ -1506,10 +1821,12 @@ export function Admin() {
                 </div>
 
                 <div className={`mt-2 text-xs ${chatListMetaClasses}`}>
-                  {common.shownCount(filteredThreads.length, boardThreads.length)}
+                  {chatBoardView === "posts"
+                    ? common.shownCount(filteredPosts.length, posts.length)
+                    : common.shownCount(filteredThreads.length, boardThreads.length)}
                 </div>
 
-                {bulkActionMenuOpen ? (
+                {chatBoardView !== "posts" && bulkActionMenuOpen ? (
                   <div
                     className="fixed inset-0 z-50 md:hidden"
                     onClick={() => setBulkActionMenuOpen(false)}
@@ -1529,7 +1846,7 @@ export function Admin() {
                           className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-600"
                           aria-label={common.close}
                         >
-                          <i className="fa-solid fa-x" aria-hidden="true" />
+                          <i className="fa-solid fa-xmark" aria-hidden="true" />
                         </button>
                       </div>
 
@@ -1595,7 +1912,75 @@ export function Admin() {
                   isDarkTheme ? "divide-y divide-slate-800" : "divide-y divide-slate-200"
                 }`}
               >
-                {boardThreads.length === 0 ? (
+                {chatBoardView === "posts" ? (
+                  loadingPosts ? (
+                    <div
+                      className={`flex h-full min-h-[560px] items-center justify-center px-6 text-sm ${chatListEmptyClasses}`}
+                    >
+                      {common.loading}
+                    </div>
+                  ) : posts.length === 0 ? (
+                    <div
+                      className={`flex h-full min-h-[560px] items-center justify-center px-6 text-sm ${chatListEmptyClasses}`}
+                    >
+                      {adminCopy.noPostsYet}
+                    </div>
+                  ) : filteredPosts.length === 0 ? (
+                    <div
+                      className={`flex h-full min-h-[560px] items-center justify-center px-6 text-sm ${chatListEmptyClasses}`}
+                    >
+                      {adminCopy.noPostsMatch}
+                    </div>
+                  ) : (
+                    filteredPosts.map((post) => (
+                      <div key={post.id} className="px-5 py-4">
+                        <div className="flex items-start gap-3">
+                          {isSelectingPosts ? (
+                            <input
+                              type="checkbox"
+                              checked={selectedPostIds.includes(post.id)}
+                              onChange={() => togglePostSelection(post.id)}
+                              className="mt-1 h-4 w-4 rounded accent-slate-700"
+                            />
+                          ) : null}
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-3">
+                              <div
+                                className={`truncate text-[15px] font-semibold ${
+                                  isDarkTheme ? "text-white" : "text-slate-900"
+                                }`}
+                              >
+                                {post.title}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className={`shrink-0 text-xs ${chatListMetaClasses}`}>
+                                  {formatTime(post.created_at)}
+                                </div>
+                                {!isSelectingPosts ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => void deleteSinglePostForAdmin(post)}
+                                    disabled={deletingPostIds.includes(post.id)}
+                                    className="rounded-lg border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                                  >
+                                    {deletingPostIds.includes(post.id) ? common.deleting : common.delete}
+                                  </button>
+                                ) : null}
+                              </div>
+                            </div>
+                            <div className={`mt-1 text-xs ${chatListMetaClasses}`}>
+                              {getPostAuthorLabel(post)}
+                            </div>
+                            <div className={`mt-2 line-clamp-3 text-sm ${chatListNoteClasses}`}>
+                              {post.body}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )
+                ) : boardThreads.length === 0 ? (
                   <div
                     className={`flex h-full min-h-[560px] items-center justify-center px-6 text-sm ${chatListEmptyClasses}`}
                   >
@@ -1674,7 +2059,7 @@ export function Admin() {
               </div>
             </Card>
 
-            {selectedChatId ? (
+            {chatBoardView !== "posts" && selectedChatId ? (
               <Card className="flex h-[calc(100vh-12rem)] min-h-[620px] max-h-[860px] flex-col overflow-hidden border border-slate-200 bg-white p-0 shadow-2xl">
                 {loadingChat ? (
                   <div className="flex h-full items-center justify-center text-sm text-slate-600">
@@ -1787,7 +2172,7 @@ export function Admin() {
                                 className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-600"
                                 aria-label={common.close}
                               >
-                                <i className="fa-solid fa-x" aria-hidden="true" />
+                                <i className="fa-solid fa-xmark" aria-hidden="true" />
                               </button>
                             </div>
 

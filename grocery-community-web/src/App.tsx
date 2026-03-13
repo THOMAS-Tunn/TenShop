@@ -3,6 +3,7 @@ import { Route, Routes, Navigate, useLocation, useParams } from "react-router-do
 import { getCurrentUser, type SessionUser } from "./lib/auth";
 import { Layout } from "./components/Layout";
 import { Home } from "./pages/Home";
+import { AboutUs } from "./pages/AboutUs";
 import { Auth } from "./pages/Auth";
 import { Shop } from "./pages/Shop";
 import { Community } from "./pages/Community";
@@ -111,6 +112,7 @@ export default function App() {
             }
           />
           <Route path="/" element={<Home user={user} />} />
+          <Route path="/aboutus" element={<AboutUs user={user} />} />
           <Route path="/auth" element={<Auth />} />
           <Route
             path="/shop"

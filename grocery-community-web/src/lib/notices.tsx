@@ -23,6 +23,8 @@ type ConfirmOptions = {
   cancelLabel?: string;
   confirmLabel?: string;
   variant?: NoticeVariant;
+  suppressKey?: string;
+  suppressLabel?: string;
 };
 
 type NoticeDialog = {
@@ -41,6 +43,8 @@ type ConfirmDialog = {
   variant: NoticeVariant;
   cancelLabel: string;
   confirmLabel: string;
+  suppressKey?: string;
+  suppressLabel?: string;
 };
 
 type Dialog = NoticeDialog | ConfirmDialog;
@@ -70,6 +74,12 @@ const NOTICE_ICONS: Record<NoticeVariant, string> = {
   warning: "fa-triangle-exclamation",
   error: "fa-circle-exclamation",
 };
+
+const CONFIRM_SUPPRESS_STORAGE_PREFIX = "tenshop-confirm-suppress:";
+
+function getSuppressStorageKey(suppressKey: string) {
+  return `${CONFIRM_SUPPRESS_STORAGE_PREFIX}${suppressKey}`;
+}
 
 function getDialogToneClasses(theme: "light" | "dark", variant: NoticeVariant) {
   const isDarkTheme = theme === "dark";
@@ -135,6 +145,7 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
   const nextIdRef = useRef(0);
   const confirmResolverMapRef = useRef<Record<string, (value: boolean) => void>>({});
   const actionButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [suppressConfirmChecked, setSuppressConfirmChecked] = useState(false);
 
   const activeDialog = dialogs[0] ?? null;
   const activeTone = activeDialog ? getDialogToneClasses(theme, activeDialog.variant) : null;
@@ -151,16 +162,21 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
     (id: string) => {
       settleConfirm(id, false);
       setDialogs((prev) => prev.filter((dialog) => dialog.id !== id));
+      setSuppressConfirmChecked(false);
     },
     [settleConfirm]
   );
 
   const confirmNotice = useCallback(
-    (id: string) => {
+    (id: string, suppressKey?: string) => {
+      if (suppressKey && suppressConfirmChecked && typeof window !== "undefined") {
+        window.localStorage.setItem(getSuppressStorageKey(suppressKey), "1");
+      }
       settleConfirm(id, true);
       setDialogs((prev) => prev.filter((dialog) => dialog.id !== id));
+      setSuppressConfirmChecked(false);
     },
-    [settleConfirm]
+    [settleConfirm, suppressConfirmChecked]
   );
 
   const showNotice = useCallback((message: string, options?: NoticeOptions) => {
@@ -210,6 +226,12 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
       const trimmed = message.trim();
       if (!trimmed) return Promise.resolve(false);
 
+      const suppressKey = options?.suppressKey?.trim();
+      if (suppressKey && typeof window !== "undefined") {
+        const isSuppressed = window.localStorage.getItem(getSuppressStorageKey(suppressKey)) === "1";
+        if (isSuppressed) return Promise.resolve(true);
+      }
+
       const id = `confirm-${++nextIdRef.current}`;
       const nextDialog: ConfirmDialog = {
         id,
@@ -218,6 +240,8 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
         variant: options?.variant ?? "warning",
         confirmLabel: options?.confirmLabel ?? copy.common.done,
         cancelLabel: options?.cancelLabel ?? copy.common.cancel,
+        suppressKey: suppressKey || undefined,
+        suppressLabel: options?.suppressLabel?.trim() || undefined,
       };
 
       setDialogs((prev) => [...prev, nextDialog]);
@@ -245,6 +269,10 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
 
     return () => window.clearTimeout(timer);
   }, [activeDialog, dismissNotice]);
+
+  useEffect(() => {
+    setSuppressConfirmChecked(false);
+  }, [activeDialog?.id]);
 
   useEffect(() => {
     if (!activeDialog) return;
@@ -384,6 +412,28 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
                 </button>
               </div>
 
+              {activeDialog.kind === "confirm" && activeDialog.suppressKey ? (
+                <label
+                  className={clsx(
+                    "mt-5 flex cursor-pointer items-start gap-2 text-sm",
+                    theme === "dark" ? "text-slate-300" : "text-slate-700"
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={suppressConfirmChecked}
+                    onChange={(event) => setSuppressConfirmChecked(event.target.checked)}
+                    className={clsx(
+                      "mt-0.5 h-4 w-4 rounded border",
+                      theme === "dark"
+                        ? "border-slate-600 bg-slate-900 text-slate-100"
+                        : "border-slate-300 bg-white text-slate-900"
+                    )}
+                  />
+                  <span>{activeDialog.suppressLabel ?? copy.common.dontShowAgain}</span>
+                </label>
+              ) : null}
+
               <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 {activeDialog.kind === "confirm" ? (
                   <>
@@ -400,7 +450,7 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => confirmNotice(activeDialog.id)}
+                      onClick={() => confirmNotice(activeDialog.id, activeDialog.suppressKey)}
                       className={clsx(
                         "rounded-2xl px-4 py-2.5 text-sm font-semibold transition",
                         getPrimaryActionClasses(theme, activeDialog.variant)

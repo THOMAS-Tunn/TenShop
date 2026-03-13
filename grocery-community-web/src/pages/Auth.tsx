@@ -13,6 +13,7 @@ export function Auth() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -75,13 +76,31 @@ export function Auth() {
             type="email"
             required
           />
-          <Field
-            label={common.password}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            type="password"
-            required
-          />
+          <label className="block">
+            <div className="mb-1 text-sm font-medium text-slate-700">{common.password}</div>
+            <div className="relative">
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type={showPassword ? "text" : "password"}
+                autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                required
+                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 pr-20 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-slate-400"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center text-sm text-slate-500 transition hover:text-slate-900"
+                aria-label={showPassword ? common.hide : common.show}
+                title={showPassword ? common.hide : common.show}
+              >
+                <i
+                  className={showPassword ? "fa-regular fa-eye-slash" : "fa-regular fa-eye"}
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
+          </label>
           <button
             disabled={busy}
             className="w-full rounded-2xl bg-slate-900 px-4 py-2 text-white hover:opacity-90 disabled:opacity-60"
