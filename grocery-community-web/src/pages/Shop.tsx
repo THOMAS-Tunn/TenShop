@@ -657,7 +657,7 @@ export function Shop({ user }: { user: SessionUser }) {
                 paginatedProducts.map((product) => (
                   <Card
                     key={product.id}
-                    className="cursor-pointer p-4 transition hover:-translate-y-0.5 hover:shadow-lg"
+                    className="flex h-full cursor-pointer flex-col p-4 transition hover:-translate-y-0.5 hover:shadow-lg"
                   >
                     <button
                       type="button"
@@ -704,28 +704,30 @@ export function Shop({ user }: { user: SessionUser }) {
                       ) : null}
                     </button>
 
-                    <button
-                      disabled={addingId === product.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void addProductToList(product);
-                      }}
-                      className="mt-3 w-full rounded-2xl bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-60"
-                    >
-                      {addingId === product.id ? common.adding : shop.addToCart}
-                    </button>
+                    <div className="mt-auto pt-3">
+                      <button
+                        disabled={addingId === product.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void addProductToList(product);
+                        }}
+                        className="w-full rounded-2xl bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-60"
+                      >
+                        {addingId === product.id ? common.adding : shop.addToCart}
+                      </button>
 
-                    {selectedListId ? (
-                      <div className="mt-2 text-xs text-slate-500">
-                        {shop.addsTo}{" "}
-                        <span className="font-medium">
-                          {lists.find((list) => list.id === selectedListId)?.name ??
-                            shop.selectedCartFallback}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="mt-2 text-xs text-slate-500">{shop.createCartToStart}</div>
-                    )}
+                      {selectedListId ? (
+                        <div className="mt-2 text-xs text-slate-500">
+                          {shop.addsTo}{" "}
+                          <span className="font-medium">
+                            {lists.find((list) => list.id === selectedListId)?.name ??
+                              shop.selectedCartFallback}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-xs text-slate-500">{shop.createCartToStart}</div>
+                      )}
+                    </div>
                   </Card>
                 ))
               )}
