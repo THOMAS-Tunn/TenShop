@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../components/Card";
+import { DateField } from "../components/DateField";
 import { ProductImageField } from "../components/ProductImageField";
 import { useAppSettings } from "../lib/app-settings";
 import { uploadProductImage } from "../lib/imagekit";
@@ -1689,53 +1690,34 @@ export function Admin() {
 
                   {chatFilterOpen ? (
                     <div
-                      className={`absolute right-0 z-20 mt-2 w-full max-w-sm rounded-2xl p-4 shadow-2xl ${chatFilterPanelClasses}`}
+                      className={`absolute right-0 z-20 mt-2 w-full max-w-sm rounded-2xl p-4 shadow-2xl animate-scale-in ${chatFilterPanelClasses}`}
                     >
-                      <div
-                        className={`text-xs font-semibold uppercase tracking-wide ${
-                          isDarkTheme ? "text-slate-300" : "text-slate-700"
-                        }`}
-                      >
+                      <div className={`text-xs font-semibold uppercase tracking-[0.18em] mb-4 ${isDarkTheme ? "text-slate-300" : "text-slate-700"}`}>
+                        <i className="fa-solid fa-sliders mr-2 text-[rgb(213,120,28)]" aria-hidden="true" />
                         {adminCopy.advancedFilters}
                       </div>
 
-                      <div className="mt-3 grid gap-3">
-                        <div>
-                          <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
-                            {adminCopy.fromDate}
-                          </label>
-                          <input
-                            type="date"
+                      <div className="grid gap-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          <DateField
+                            label={adminCopy.fromDate}
                             value={chatBoardView === "posts" ? postDateFrom : chatDateFrom}
-                            onChange={(e) =>
-                              chatBoardView === "posts"
-                                ? setPostDateFrom(e.target.value)
-                                : setChatDateFrom(e.target.value)
-                            }
-                            className={chatFilterInputClasses}
+                            onChange={(v) => chatBoardView === "posts" ? setPostDateFrom(v) : setChatDateFrom(v)}
+                            isDark={isDarkTheme}
                           />
-                        </div>
-
-                        <div>
-                          <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
-                            {adminCopy.toDate}
-                          </label>
-                          <input
-                            type="date"
+                          <DateField
+                            label={adminCopy.toDate}
                             value={chatBoardView === "posts" ? postDateTo : chatDateTo}
-                            onChange={(e) =>
-                              chatBoardView === "posts"
-                                ? setPostDateTo(e.target.value)
-                                : setChatDateTo(e.target.value)
-                            }
-                            className={chatFilterInputClasses}
+                            onChange={(v) => chatBoardView === "posts" ? setPostDateTo(v) : setChatDateTo(v)}
+                            isDark={isDarkTheme}
                           />
                         </div>
 
                         {chatBoardView === "posts" ? null : (
                           <>
-                            <div>
-                              <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
+                            <div className="date-field-wrapper">
+                              <label className="date-field-label">
+                                <i className="fa-solid fa-tag date-field-icon" aria-hidden="true" />
                                 {common.status}
                               </label>
                               <select
@@ -1752,42 +1734,50 @@ export function Admin() {
                               </select>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="date-field-wrapper">
+                                <label className="date-field-label">
+                                  <i className="fa-solid fa-arrow-down-to-bracket date-field-icon" aria-hidden="true" />
                                   {adminCopy.minTotal}
                                 </label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={chatMinTotal}
-                                  onChange={(e) => setChatMinTotal(e.target.value)}
-                                  placeholder="0.00"
-                                  className={`${chatFilterInputClasses} placeholder:text-slate-400`}
-                                />
+                                <div className="date-field-input-wrap">
+                                  <i className="fa-solid fa-dollar-sign date-field-cal-icon" aria-hidden="true" />
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={chatMinTotal}
+                                    onChange={(e) => setChatMinTotal(e.target.value)}
+                                    placeholder="0.00"
+                                    className="date-field-input placeholder:text-slate-400"
+                                  />
+                                </div>
                               </div>
 
-                              <div>
-                                <label className={`mb-1 block text-xs ${chatFilterLabelClasses}`}>
+                              <div className="date-field-wrapper">
+                                <label className="date-field-label">
+                                  <i className="fa-solid fa-arrow-up-from-bracket date-field-icon" aria-hidden="true" />
                                   {adminCopy.maxTotal}
                                 </label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={chatMaxTotal}
-                                  onChange={(e) => setChatMaxTotal(e.target.value)}
-                                  placeholder="999.99"
-                                  className={`${chatFilterInputClasses} placeholder:text-slate-400`}
-                                />
+                                <div className="date-field-input-wrap">
+                                  <i className="fa-solid fa-dollar-sign date-field-cal-icon" aria-hidden="true" />
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={chatMaxTotal}
+                                    onChange={(e) => setChatMaxTotal(e.target.value)}
+                                    placeholder="999.99"
+                                    className="date-field-input placeholder:text-slate-400"
+                                  />
+                                </div>
                               </div>
                             </div>
                           </>
                         )}
                       </div>
 
-                      <div className="mt-4 flex items-center justify-between gap-2">
+                      <div className="mt-5 flex items-center justify-between gap-2 border-t pt-3" style={{ borderColor: isDarkTheme ? "rgb(78,58,36)" : "rgb(210,196,178)" }}>
                         <button
                           type="button"
                           onClick={() => {
@@ -1796,15 +1786,15 @@ export function Admin() {
                               setPostDateTo("");
                               return;
                             }
-
                             setChatDateFrom("");
                             setChatDateTo("");
                             setChatStatusFilter("");
                             setChatMinTotal("");
                             setChatMaxTotal("");
                           }}
-                          className={`rounded-xl border px-3 py-2 text-xs font-semibold ${chatFilterClearClasses}`}
+                          className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${chatFilterClearClasses}`}
                         >
+                          <i className="fa-solid fa-rotate-left mr-1.5 text-[10px]" aria-hidden="true" />
                           {common.clear}
                         </button>
 
@@ -1813,6 +1803,7 @@ export function Admin() {
                           onClick={() => setChatFilterOpen(false)}
                           className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${chatFilterDoneClasses}`}
                         >
+                          <i className="fa-solid fa-check mr-1.5 text-[10px]" aria-hidden="true" />
                           {common.done}
                         </button>
                       </div>

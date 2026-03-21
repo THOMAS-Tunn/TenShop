@@ -5,42 +5,48 @@
 @layer base {
   :root {
     color-scheme: light;
-    --app-bg: 241 245 249;
-    --app-surface: 249 250 251;
-    --app-surface-muted: 244 247 250;
-    --app-surface-soft: 235 239 244;
-    --app-surface-strong: 225 231 238;
-    --app-border: 196 206 218;
-    --app-border-strong: 148 163 184;
-    --app-text-strong: 15 23 42;
-    --app-text: 30 41 59;
-    --app-text-muted: 71 85 105;
-    --app-text-soft: 100 116 139;
-    --app-input-bg: 249 250 251;
-    --app-selection: 15 23 42;
+    --app-bg: 250 246 240;
+    --app-surface: 255 252 248;
+    --app-surface-muted: 248 244 237;
+    --app-surface-soft: 242 236 226;
+    --app-surface-strong: 232 224 212;
+    --app-border: 210 196 178;
+    --app-border-strong: 180 164 142;
+    --app-text-strong: 28 18 8;
+    --app-text: 48 34 18;
+    --app-text-muted: 92 70 46;
+    --app-text-soft: 140 112 82;
+    --app-input-bg: 255 252 248;
+    --app-selection: 28 18 8;
     --app-selection-text: 255 255 255;
-    --app-scrollbar-thumb: 148 163 184;
-    --app-scrollbar-thumb-hover: 100 116 139;
+    --app-scrollbar-thumb: 180 164 142;
+    --app-scrollbar-thumb-hover: 140 112 82;
+    --brand: 213 120 28;
+    --brand-soft: 248 220 170;
+    --brand-muted: 240 196 120;
   }
 
   html[data-theme="dark"] {
     color-scheme: dark;
-    --app-bg: 2 6 23;
-    --app-surface: 15 23 42;
-    --app-surface-muted: 30 41 59;
-    --app-surface-soft: 51 65 85;
-    --app-surface-strong: 71 85 105;
-    --app-border: 71 85 105;
-    --app-border-strong: 100 116 139;
-    --app-text-strong: 248 250 252;
-    --app-text: 226 232 240;
-    --app-text-muted: 203 213 225;
-    --app-text-soft: 148 163 184;
-    --app-input-bg: 15 23 42;
-    --app-selection: 28 28 28;
-    --app-selection-text: 255 165 0;
-    --app-scrollbar-thumb: 148 163 184;
-    --app-scrollbar-thumb-hover: 148 163 184;
+    --app-bg: 14 10 6;
+    --app-surface: 28 20 12;
+    --app-surface-muted: 42 30 18;
+    --app-surface-soft: 58 42 26;
+    --app-surface-strong: 78 58 36;
+    --app-border: 78 58 36;
+    --app-border-strong: 110 84 52;
+    --app-text-strong: 252 246 238;
+    --app-text: 234 222 206;
+    --app-text-muted: 208 190 166;
+    --app-text-soft: 164 140 110;
+    --app-input-bg: 28 20 12;
+    --app-selection: 58 42 26;
+    --app-selection-text: 248 196 100;
+    --app-scrollbar-thumb: 110 84 52;
+    --app-scrollbar-thumb-hover: 140 112 82;
+    --brand: 240 172 60;
+    --brand-soft: 80 56 24;
+    --brand-muted: 120 84 32;
   }
 
   html {
@@ -48,24 +54,16 @@
     scrollbar-gutter: stable;
   }
 
-  html,
-  body,
-  #root {
-    min-height: 100%;
-  }
+  html, body, #root { min-height: 100%; }
 
   body {
     min-height: 100vh;
     background-color: rgb(var(--app-bg));
     color: rgb(var(--app-text));
-    transition:
-      background-color 0.3s ease,
-      color 0.3s ease;
+    transition: background-color 0.4s ease, color 0.4s ease;
   }
 
-  #root {
-    min-height: 100vh;
-  }
+  #root { min-height: 100vh; }
 
   .app-frame {
     position: relative;
@@ -79,6 +77,7 @@
     min-height: 100vh;
   }
 
+  /* ── Sky Scene ─────────────────────────── */
   .sky-scene {
     position: fixed;
     inset: 0;
@@ -93,37 +92,30 @@
   .sky-scene__clouds,
   .sky-scene__haze {
     position: absolute;
-    transition: opacity 0.56s ease-out;
+    transition: opacity 0.7s ease-out;
   }
 
-  .sky-scene__layer {
-    inset: -8% -5% -6%;
-  }
+  .sky-scene__layer { inset: -8% -5% -6%; }
 
   .sky-scene__layer--day {
     background:
-      radial-gradient(circle at 79% 12%, rgb(255 255 255 / 0.4) 0 13%, transparent 28%),
-      linear-gradient(
-        180deg,
-        rgb(99 187 255) 0%,
-        rgb(134 208 255) 28%,
-        rgb(182 228 255) 52%,
-        rgb(226 240 252) 74%,
-        rgb(247 250 255) 100%
-    );
+      radial-gradient(ellipse 60% 40% at 82% 8%, rgb(255 230 150 / 0.55) 0%, transparent 55%),
+      radial-gradient(ellipse 40% 30% at 15% 5%, rgb(255 200 120 / 0.25) 0%, transparent 50%),
+      linear-gradient(185deg,
+        rgb(135 195 240) 0%, rgb(175 220 255) 22%,
+        rgb(210 235 255) 44%, rgb(245 232 210) 68%,
+        rgb(255 242 220) 84%, rgb(255 250 238) 100%
+      );
     opacity: 1;
   }
 
   .sky-scene__layer--night {
     background:
-      radial-gradient(circle at 80% -8%, rgb(77 124 255 / 0.24) 0 18%, transparent 42%),
-      linear-gradient(
-        180deg,
-        rgb(2 11 29) 0%,
-        rgb(7 22 50) 24%,
-        rgb(13 34 75) 54%,
-        rgb(17 30 62) 76%,
-        rgb(11 18 39) 100%
+      radial-gradient(ellipse 55% 35% at 78% -5%, rgb(60 80 160 / 0.30) 0%, transparent 55%),
+      radial-gradient(ellipse 70% 50% at 50% 100%, rgb(30 20 10 / 0.8) 0%, transparent 60%),
+      linear-gradient(180deg,
+        rgb(4 8 22) 0%, rgb(8 14 38) 20%, rgb(14 22 55) 48%,
+        rgb(20 16 10) 75%, rgb(10 8 4) 100%
       );
     opacity: 0;
   }
@@ -138,19 +130,8 @@
     will-change: transform;
   }
 
-  .sky-scene__orbit--sun {
-    top: -8vmin;
-    right: -9vmin;
-    width: 34vmin;
-    border-radius: 50%;
-  }
-
-  .sky-scene__orbit--moon {
-    top: -15vmin;
-    right: -13vmin;
-    width: 36vmin;
-    border-radius: 50%;
-  }
+  .sky-scene__orbit--sun  { top: -6vmin; right: -8vmin; width: 30vmin; border-radius: 50%; }
+  .sky-scene__orbit--moon { top: -12vmin; right: -10vmin; width: 32vmin; border-radius: 50%; }
 
   .sky-scene__sun,
   .sky-scene__moon {
@@ -161,184 +142,362 @@
     aspect-ratio: 1;
     border-radius: 999px;
     backface-visibility: hidden;
-    transition: opacity 0.44s ease-out;
+    transition: opacity 0.5s ease-out;
   }
 
   .sky-scene__sun {
     background-image:
-      radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.452) 100px 100%, transparent 20%),
+      radial-gradient(circle at 50% 50%, rgba(255,255,255,0.35) 30%, transparent 68%),
       url("./assets/sun.jpg");
-    background-position: 42% 34%, 42% 34%;
+    background-position: center, 42% 34%;
     background-repeat: no-repeat;
-    background-size: 108% 108%, cover;
+    background-size: cover, cover;
     box-shadow:
-      0 0 10vmin rgb(255 232 169 / 0.16),
-      0 0 22vmin rgb(255 255 255 / 0.12);
-    filter: blur(2px) brightness(1.16);
-    opacity: 0.78;
+      0 0 8vmin rgb(255 200 80 / 0.40),
+      0 0 20vmin rgb(255 160 40 / 0.20),
+      0 0 40vmin rgb(255 120 20 / 0.10);
+    filter: blur(1.5px) brightness(1.1) saturate(1.2);
+    opacity: 0.9;
   }
 
   .sky-scene__moon {
     background-image:
-      radial-gradient(circle at 35% 28%, rgb(255 255 255 / 0.2) 0 10%, transparent 24%),
-      radial-gradient(circle at 62% 72%, rgb(147 197 253 / 0.08) 0 14%, transparent 30%),
+      radial-gradient(circle at 32% 26%, rgb(255 255 255 / 0.18) 0 8%, transparent 22%),
       url("./assets/_Moon__Poster_for_Sale_by_NomiBee-removebg-preview.png");
-    background-position: center, center, center;
+    background-position: center;
     background-repeat: no-repeat;
-    background-size: 100% 100%, 100% 100%, cover;
+    background-size: 100% 100%, cover;
     box-shadow:
-      0 0 8vmin rgb(190 215 255 / 0.1),
-      0 0 24vmin rgb(96 165 250 / 0.08);
-    filter: grayscale(0.08) brightness(1.04) contrast(0.9);
+      0 0 6vmin rgb(160 180 255 / 0.12),
+      0 0 20vmin rgb(80 100 200 / 0.07);
+    filter: grayscale(0.05) brightness(1.06) contrast(0.92);
     opacity: 0;
-  }
-
-  .sky-scene__sun::before,
-  .sky-scene__sun::after {
-    content: "";
-    position: absolute;
-    pointer-events: none;
   }
 
   .sky-scene__sun::before {
-    inset: -12%;
+    content: "";
+    position: absolute;
+    inset: -18%;
     border-radius: 999px;
-    background: radial-gradient(circle, rgb(255 244 200 / 0.18) 0%, transparent 68%);
-    opacity: 0.8;
+    background: radial-gradient(circle, rgb(255 210 100 / 0.22) 0%, transparent 65%);
+    opacity: 0.9;
   }
 
-  .sky-scene__sun::after {
-    display: none;
-  }
+  .sky-scene__orbit--incoming-sun  { animation: sky-scene-orbit-in-sun  0.55s cubic-bezier(0.22,0.61,0.36,1) both; }
+  .sky-scene__orbit--incoming-moon { animation: sky-scene-orbit-in-moon 0.55s cubic-bezier(0.22,0.61,0.36,1) both; }
 
-  .sky-scene__orbit--incoming-sun {
-    animation: sky-scene-orbit-in-sun .5s linear both;
-  }
-
-  .sky-scene__orbit--incoming-moon {
-    animation: sky-scene-orbit-in-moon .5s linear both;
-  }
-
-  .sky-scene__stars {
-    inset: 0;
-    opacity: 0;
-  }
+  .sky-scene__stars { inset: 0; opacity: 0; }
 
   .sky-scene__star {
     position: absolute;
     display: block;
     border-radius: 999px;
     background: rgb(255 255 255 / 0.95);
-    filter: brightness(0.82);
     transform-origin: center;
     box-shadow:
-      0 0 0.35rem rgb(255 255 255 / 0.82),
-      0 0 0.7rem rgb(191 219 254 / 0.28);
-    animation: sky-scene-twinkle 3.6s ease-in-out infinite alternate;
+      0 0 0.4rem rgb(255 255 255 / 0.85),
+      0 0 0.9rem rgb(200 220 255 / 0.30);
+    animation: sky-scene-twinkle 3.8s ease-in-out infinite alternate;
   }
 
   .sky-scene__clouds {
-    left: -8%;
-    width: 116%;
-    background-repeat: no-repeat;
+    position: absolute;
+    left: 0; right: 0;
+    pointer-events: none;
   }
 
-  .sky-scene__clouds--far {
-    top: 28%;
-    height: 20vh;
-    opacity: 0.35;
-    filter: blur(16px);
-    background-image:
-      radial-gradient(ellipse 14% 26% at 6% 78%, rgb(255 255 255 / 0.58) 0 58%, transparent 60%),
-      radial-gradient(ellipse 17% 30% at 24% 72%, rgb(255 255 255 / 0.52) 0 60%, transparent 62%),
-      radial-gradient(ellipse 13% 24% at 40% 76%, rgb(255 255 255 / 0.5) 0 59%, transparent 61%),
-      radial-gradient(ellipse 18% 28% at 58% 70%, rgb(255 255 255 / 0.5) 0 60%, transparent 62%),
-      radial-gradient(ellipse 15% 24% at 76% 77%, rgb(255 255 255 / 0.48) 0 58%, transparent 60%),
-      radial-gradient(ellipse 18% 28% at 95% 74%, rgb(255 255 255 / 0.56) 0 60%, transparent 62%);
+  .sky-scene__cloud-layer {
+    position: absolute;
+    left: 0; right: 0; top: 0; bottom: 0;
+    transition: opacity 0.7s ease-out;
   }
 
-  .sky-scene__clouds--mid {
-    top: 45%;
-    height: 24vh;
-    opacity: 0.54;
-    filter: blur(20px);
-    background-image:
-      radial-gradient(ellipse 16% 32% at 10% 76%, rgb(255 255 255 / 0.76) 0 58%, transparent 60%),
-      radial-gradient(ellipse 20% 34% at 28% 70%, rgb(255 255 255 / 0.74) 0 60%, transparent 62%),
-      radial-gradient(ellipse 16% 28% at 47% 76%, rgb(255 255 255 / 0.72) 0 58%, transparent 60%),
-      radial-gradient(ellipse 21% 36% at 67% 70%, rgb(255 255 255 / 0.72) 0 60%, transparent 62%),
-      radial-gradient(ellipse 17% 30% at 86% 75%, rgb(255 255 255 / 0.74) 0 58%, transparent 60%);
+  .sky-scene__cloud {
+    position: absolute;
+    border-radius: 999px;
+    transform-origin: center;
   }
 
-  .sky-scene__clouds--near {
-    top: 59%;
-    height: 42vh;
-    opacity: 0.98;
-    filter: blur(24px);
-    background-image:
-      linear-gradient(180deg, rgb(255 255 255 / 0) 0%, rgb(255 255 255 / 0.22) 26%, rgb(255 255 255 / 0.94) 100%),
-      radial-gradient(ellipse 18% 36% at 8% 72%, rgb(255 255 255 / 0.96) 0 59%, transparent 61%),
-      radial-gradient(ellipse 22% 38% at 24% 68%, rgb(255 255 255 / 0.98) 0 60%, transparent 62%),
-      radial-gradient(ellipse 19% 34% at 45% 72%, rgb(255 255 255 / 0.96) 0 59%, transparent 61%),
-      radial-gradient(ellipse 24% 40% at 68% 68%, rgb(255 255 255 / 0.98) 0 60%, transparent 62%),
-      radial-gradient(ellipse 19% 34% at 92% 72%, rgb(255 255 255 / 0.96) 0 59%, transparent 61%);
+  .sky-scene__cloud-layer--far  { top: 20%; height: 18vh; opacity: 0.55; filter: blur(22px); }
+  .sky-scene__cloud-layer--mid  { top: 36%; height: 22vh; opacity: 0.70; filter: blur(16px); }
+  .sky-scene__cloud-layer--near { top: 54%; height: 38vh; opacity: 0.95; filter: blur(10px); }
+
+  .sky-scene__cloud-layer--far .sky-scene__cloud {
+    background: radial-gradient(ellipse 100% 65% at 50% 60%, rgb(255 255 255 / 0.80) 0%, rgb(230 240 255 / 0.40) 55%, transparent 100%);
+    animation: cloud-drift-far 80s linear infinite;
   }
+  .sky-scene__cloud-layer--mid .sky-scene__cloud {
+    background: radial-gradient(ellipse 100% 70% at 50% 55%, rgb(255 255 255 / 0.92) 0%, rgb(240 248 255 / 0.55) 50%, transparent 100%);
+    animation: cloud-drift-mid 55s linear infinite;
+  }
+  .sky-scene__cloud-layer--near .sky-scene__cloud {
+    background: radial-gradient(ellipse 100% 72% at 50% 50%, rgb(255 252 245 / 0.97) 0%, rgb(255 248 235 / 0.70) 45%, transparent 100%);
+    animation: cloud-drift-near 38s linear infinite;
+  }
+
+  .sky-scene__cloud--a { width: 28%; height: 100%; left: -5%;  top: 20%; }
+  .sky-scene__cloud--b { width: 22%; height: 85%;  left: 18%;  top: 5%;  animation-delay: -12s !important; }
+  .sky-scene__cloud--c { width: 26%; height: 90%;  left: 38%;  top: 15%; animation-delay: -28s !important; }
+  .sky-scene__cloud--d { width: 24%; height: 80%;  left: 60%;  top: 8%;  animation-delay: -8s !important; }
+  .sky-scene__cloud--e { width: 28%; height: 95%;  left: 78%;  top: 22%; animation-delay: -20s !important; }
 
   .sky-scene__haze {
     inset: auto -4% -8% -4%;
-    height: 34vh;
+    height: 28vh;
     background:
-      radial-gradient(circle at 50% 0%, rgb(255 255 255 / 0.24) 0 18%, transparent 56%),
-      linear-gradient(180deg, rgb(255 255 255 / 0) 0%, rgb(255 255 255 / 0.34) 48%, rgb(255 255 255 / 0.68) 100%);
-    opacity: 0.92;
-  }
-  .sky-scene--dark .sky-scene__layer--day {
-    opacity: 0;
+      radial-gradient(ellipse 70% 100% at 50% 100%, rgb(255 248 235 / 0.55) 0%, transparent 70%),
+      linear-gradient(180deg, transparent 0%, rgb(255 246 232 / 0.60) 55%, rgb(255 242 218 / 0.85) 100%);
+    opacity: 0.85;
   }
 
-  .sky-scene--dark .sky-scene__layer--night {
-    opacity: 1;
-  }
-
-  .sky-scene--dark .sky-scene__sun {
-    opacity: 0;
-  }
-
-  .sky-scene--dark .sky-scene__moon {
-    opacity: 0.42;
-  }
-
-  .sky-scene--dark .sky-scene__stars {
-    opacity: 1;
-  }
-
-  .sky-scene--dark .sky-scene__clouds--far {
-    opacity: 0.08;
-  }
-
-  .sky-scene--dark .sky-scene__clouds--mid {
-    opacity: 0.05;
-  }
-
-  .sky-scene--dark .sky-scene__clouds--near {
-    opacity: 0;
-  }
-
+  .sky-scene--dark .sky-scene__layer--day    { opacity: 0; }
+  .sky-scene--dark .sky-scene__layer--night  { opacity: 1; }
+  .sky-scene--dark .sky-scene__sun           { opacity: 0; }
+  .sky-scene--dark .sky-scene__moon          { opacity: 0.50; }
+  .sky-scene--dark .sky-scene__stars         { opacity: 1; }
+  .sky-scene--dark .sky-scene__cloud-layer--far  { opacity: 0.06; filter: blur(28px); }
+  .sky-scene--dark .sky-scene__cloud-layer--mid  { opacity: 0.04; filter: blur(24px); }
+  .sky-scene--dark .sky-scene__cloud-layer--near { opacity: 0; }
   .sky-scene--dark .sky-scene__haze {
     background:
-      radial-gradient(circle at 50% 0%, rgb(147 197 253 / 0.08) 0 16%, transparent 56%),
-      linear-gradient(180deg, rgb(2 6 23 / 0) 0%, rgb(2 6 23 / 0.18) 48%, rgb(2 6 23 / 0.56) 100%);
-    opacity: 0;
+      radial-gradient(ellipse 60% 100% at 50% 100%, rgb(40 30 15 / 0.50) 0%, transparent 65%),
+      linear-gradient(180deg, transparent 0%, rgb(14 10 6 / 0.35) 55%, rgb(14 10 6 / 0.70) 100%);
+    opacity: 0.9;
   }
 
-  a {
-    color: inherit;
+  /* ── Date Input ─────────────────────────────────────────── */
+  input[type="date"] {
+    position: relative;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
   }
 
-  button,
-  input,
-  select,
-  textarea {
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0.5;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 2px 3px;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  html[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.65) sepia(0.3) hue-rotate(15deg);
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+
+  input[type="date"]:focus {
+    outline: none;
+    border-color: rgb(var(--brand)) !important;
+    box-shadow: 0 0 0 3px rgb(var(--brand) / 0.14);
+  }
+
+  /* Enhanced date-field component classes */
+  .date-field-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .date-field-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.695rem;
+    font-weight: 600;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: rgb(var(--app-text-soft));
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .date-field-label .date-field-icon {
+    font-size: 0.62rem;
+    color: rgb(var(--brand));
+    opacity: 0.85;
+  }
+
+  .date-field-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .date-field-input-wrap .date-field-cal-icon {
+    position: absolute;
+    left: 0.7rem;
+    font-size: 0.78rem;
+    color: rgb(var(--brand));
+    opacity: 0.7;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .date-field-input-wrap:focus-within .date-field-cal-icon {
+    opacity: 1;
+  }
+
+  .date-field-input {
+    width: 100%;
+    padding: 0.5rem 0.7rem 0.5rem 2.1rem;
+    border-radius: 0.875rem;
+    border: 1.5px solid rgb(var(--app-border));
+    background: rgb(var(--app-input-bg));
+    color: rgb(var(--app-text));
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .date-field-input:focus {
+    outline: none;
+    border-color: rgb(var(--brand));
+    box-shadow: 0 0 0 3px rgb(var(--brand) / 0.13);
+  }
+
+  .date-field-input:hover:not(:focus) {
+    border-color: rgb(var(--app-border-strong));
+  }
+
+  /* ── Page & Element Animations ──────────────────────────── */
+  main {
+    animation: fade-up-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-fade-up   { animation: fade-up-in  0.40s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-fade-in   { animation: fade-in      0.35s ease both; }
+  .animate-scale-in  { animation: scale-in     0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+  .animate-slide-left  { animation: slide-in-left  0.40s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-slide-right { animation: slide-in-right 0.40s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+  /* Floating — for decorative, non-interactive display elements */
+  .animate-float         { animation: float-gentle 4.2s ease-in-out infinite; }
+  .animate-float-delayed { animation: float-gentle 4.2s ease-in-out infinite; animation-delay: 1.4s; }
+  .animate-float-slow    { animation: float-gentle 6.0s ease-in-out infinite; animation-delay: 0.7s; }
+
+  /* Shimmer text */
+  .text-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgb(var(--app-text)) 0%,
+      rgb(var(--brand)) 42%,
+      rgb(var(--app-text)) 62%,
+      rgb(var(--brand-muted)) 80%,
+      rgb(var(--app-text)) 100%
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer-slide 4s linear infinite;
+  }
+
+  /* Status pulsing dot */
+  .animate-pulse-soft { animation: pulse-soft 2.4s ease-in-out infinite; }
+
+  /* Badge pop */
+  .animate-badge-pop { animation: badge-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+  /* Stagger delays */
+  .stagger-1  { animation-delay: 0.05s; }
+  .stagger-2  { animation-delay: 0.10s; }
+  .stagger-3  { animation-delay: 0.15s; }
+  .stagger-4  { animation-delay: 0.20s; }
+  .stagger-5  { animation-delay: 0.25s; }
+  .stagger-6  { animation-delay: 0.30s; }
+  .stagger-7  { animation-delay: 0.35s; }
+  .stagger-8  { animation-delay: 0.40s; }
+  .stagger-9  { animation-delay: 0.45s; }
+  .stagger-10 { animation-delay: 0.50s; }
+  .stagger-11 { animation-delay: 0.55s; }
+  .stagger-12 { animation-delay: 0.60s; }
+
+  /* ── Non-button display elements ────────────────────────── */
+
+  /* Explicit non-interactive flag */
+  .display-only {
+    pointer-events: none;
+    user-select: none;
+    cursor: default;
+  }
+
+  /* Status badge */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    border: 1px solid currentColor;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  /* Price tag display element */
+  .price-tag {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 1px;
+    font-weight: 700;
+    line-height: 1;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  /* Tag chip — display label only */
+  .tag-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.18rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    pointer-events: none;
+    user-select: none;
+    background: rgb(var(--app-surface-soft));
+    color: rgb(var(--app-text-muted));
+    border: 1px solid rgb(var(--app-border));
+    transition: none;
+  }
+
+  /* Product card hover lift */
+  .product-card {
+    transition:
+      transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.22s ease;
+    cursor: pointer;
+  }
+
+  .product-card:hover {
+    transform: translateY(-5px) scale(1.015);
+    box-shadow: 0 14px 36px rgb(var(--app-text-strong) / 0.10);
+  }
+
+  .product-card__image { overflow: hidden; }
+
+  .product-card__image img {
+    transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
+
+  .product-card:hover .product-card__image img {
+    transform: scale(1.07);
+  }
+
+  /* ── Form elements ─────────────────────────────────────── */
+  a { color: inherit; }
+
+  button, input, select, textarea {
     transition:
       background-color 0.3s ease,
       border-color 0.3s ease,
@@ -346,23 +505,18 @@
       box-shadow 0.3s ease;
   }
 
-  input,
-  select,
-  textarea {
+  input, select, textarea {
     background-color: rgb(var(--app-input-bg));
     color: rgb(var(--app-text));
     border-color: rgb(var(--app-border));
   }
 
-  input::placeholder,
-  textarea::placeholder {
+  input::placeholder, textarea::placeholder {
     color: rgb(var(--app-text-soft));
     opacity: 1;
   }
 
-  input:focus,
-  select:focus,
-  textarea:focus {
+  input:focus, select:focus, textarea:focus {
     border-color: rgb(var(--app-border-strong));
   }
 
@@ -375,407 +529,199 @@
     scrollbar-color: rgb(var(--app-scrollbar-thumb) / 0.6) transparent;
     scrollbar-width: thin;
   }
-
-  *::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
-
-  *::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  *::-webkit-scrollbar-thumb {
+  *::-webkit-scrollbar         { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-track   { background: transparent; }
+  *::-webkit-scrollbar-thumb   {
     min-height: 40px;
-    background-color: rgb(var(--app-scrollbar-thumb) / 0.58);
+    background-color: rgb(var(--app-scrollbar-thumb) / 0.55);
     border: 2px solid transparent;
     background-clip: padding-box;
     border-radius: 9999px;
   }
-
-  *::-webkit-scrollbar-thumb:hover {
-    background-color: rgb(var(--app-scrollbar-thumb-hover) / 0.78);
-  }
-
-  *::-webkit-scrollbar-corner {
-    background: transparent;
-  }
+  *::-webkit-scrollbar-thumb:hover { background-color: rgb(var(--app-scrollbar-thumb-hover) / 0.75); }
+  *::-webkit-scrollbar-corner { background: transparent; }
 
   @media (max-width: 767px) {
-    .sky-scene__orbit--sun,
-    .sky-scene__orbit--moon {
-      display: none;
-    }
+    .sky-scene__orbit--sun, .sky-scene__orbit--moon { display: none; }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .sky-scene__layer,
-    .sky-scene__orbit,
-    .sky-scene__sun,
-    .sky-scene__moon,
-    .sky-scene__stars,
-    .sky-scene__clouds,
-    .sky-scene__haze,
-    .sky-scene__star {
+    .sky-scene__layer, .sky-scene__orbit, .sky-scene__sun,
+    .sky-scene__moon, .sky-scene__stars, .sky-scene__cloud-layer,
+    .sky-scene__cloud, .sky-scene__haze, .sky-scene__star,
+    main, .animate-fade-up, .animate-fade-in, .animate-scale-in,
+    .animate-slide-left, .animate-slide-right,
+    .animate-float, .animate-float-delayed, .animate-float-slow,
+    .text-shimmer, .animate-pulse-soft, .animate-badge-pop,
+    .product-card {
       animation: none !important;
       transition-duration: 0.01ms !important;
+    }
+    .text-shimmer {
+      -webkit-text-fill-color: rgb(var(--app-text));
+      background: none;
     }
   }
 }
 
+/* ── Keyframes ─────────────────────────────────────────────── */
+@keyframes fade-up-in {
+  0%   { opacity: 0; transform: translateY(18px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes slide-in-left {
+  0%   { opacity: 0; transform: translateX(-20px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes slide-in-right {
+  0%   { opacity: 0; transform: translateX(20px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes scale-in {
+  0%   { opacity: 0; transform: scale(0.94); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes float-gentle {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-6px); }
+}
+@keyframes shimmer-slide {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+@keyframes badge-pop {
+  0%   { opacity: 0; transform: scale(0.7) translateY(4px); }
+  70%  { transform: scale(1.09) translateY(-1px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
 @keyframes sky-scene-twinkle {
-  0% {
-    transform: scale(0.92);
-    filter: brightness(0.8);
-  }
-
-  100% {
-    transform: scale(1.24);
-    filter: brightness(1.18);
-  }
+  0%   { transform: scale(0.88); filter: brightness(0.75); }
+  100% { transform: scale(1.28); filter: brightness(1.22); }
 }
-
 @keyframes sky-scene-orbit-in-sun {
-  0% {
-    transform: translate3d(-110vw, 28vh, 0) scale(0.58) rotate(-11deg);
-  }
-
-  54% {
-    transform: translate3d(-56vw, -18vh, 0) scale(0.82) rotate(-3deg);
-  }
-
-  82% {
-    transform: translate3d(-18vw, -7vh, 0) scale(0.95) rotate(1deg);
-  }
-
-  100% {
-    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
-  }
+  0%   { transform: translate3d(-115vw, 30vh, 0) scale(0.55) rotate(-12deg); }
+  55%  { transform: translate3d(-58vw, -16vh, 0) scale(0.80) rotate(-3deg); }
+  82%  { transform: translate3d(-18vw,  -6vh, 0) scale(0.95) rotate(1deg); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
 }
-
 @keyframes sky-scene-orbit-in-moon {
-  0% {
-    transform: translate3d(-108vw, 30vh, 0) scale(0.54) rotate(-10deg);
-  }
-
-  56% {
-    transform: translate3d(-58vw, -16vh, 0) scale(0.8) rotate(-3deg);
-  }
-
-  84% {
-    transform: translate3d(-20vw, -6vh, 0) scale(0.94) rotate(1deg);
-  }
-
-  100% {
-    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
-  }
+  0%   { transform: translate3d(-112vw, 32vh, 0) scale(0.52) rotate(-10deg); }
+  58%  { transform: translate3d(-60vw, -14vh, 0) scale(0.78) rotate(-2deg); }
+  85%  { transform: translate3d(-20vw,  -5vh, 0) scale(0.93) rotate(1deg); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
 }
+@keyframes cloud-drift-far  { 0% { transform: translateX(0%); } 100% { transform: translateX(12%); } }
+@keyframes cloud-drift-mid  { 0% { transform: translateX(0%); } 100% { transform: translateX(18%); } }
+@keyframes cloud-drift-near { 0% { transform: translateX(0%); } 100% { transform: translateX(22%); } }
 
+/* ── Tailwind overrides ──────────────────────────────────── */
 @layer utilities {
-  html:not([data-theme="dark"]) .border {
-    border-color: rgb(var(--app-border)) !important;
-  }
-
-  html:not([data-theme="dark"]) .bg-white {
-    background-color: rgb(var(--app-surface)) !important;
-  }
-
-  html:not([data-theme="dark"]) .bg-white\/88 {
-    background-color: rgb(var(--app-surface) / 0.9) !important;
-  }
-
-  html:not([data-theme="dark"]) .bg-white\/90 {
-    background-color: rgb(var(--app-surface) / 0.92) !important;
-  }
-
-  html:not([data-theme="dark"]) .bg-slate-50 {
-    background-color: rgb(var(--app-surface-muted)) !important;
-  }
-
-  html:not([data-theme="dark"]) .bg-slate-100 {
-    background-color: rgb(var(--app-surface-soft)) !important;
-  }
-
-  html:not([data-theme="dark"]) .bg-slate-200 {
-    background-color: rgb(var(--app-surface-strong)) !important;
-  }
-
-  html:not([data-theme="dark"]) .bg-slate-200\/50 {
-    background-color: rgb(var(--app-surface-soft) / 0.5) !important;
-  }
-
-  html:not([data-theme="dark"]) .bg-slate-300\/30 {
-    background-color: rgb(var(--app-surface-strong) / 0.32) !important;
-  }
-
-  html:not([data-theme="dark"]) .from-white {
-    --tw-gradient-from: rgb(var(--app-surface)) var(--tw-gradient-from-position) !important;
-    --tw-gradient-to: rgb(var(--app-surface) / 0) var(--tw-gradient-to-position) !important;
-  }
-
-  html:not([data-theme="dark"]) .via-slate-50 {
-    --tw-gradient-stops: var(--tw-gradient-from),
-      rgb(var(--app-surface-muted)) var(--tw-gradient-via-position),
-      var(--tw-gradient-to) !important;
-  }
-
-  html:not([data-theme="dark"]) .to-slate-100 {
-    --tw-gradient-to: rgb(var(--app-surface-soft)) var(--tw-gradient-to-position) !important;
-  }
-
+  html:not([data-theme="dark"]) .border                { border-color: rgb(var(--app-border)) !important; }
+  html:not([data-theme="dark"]) .bg-white              { background-color: rgb(var(--app-surface)) !important; }
+  html:not([data-theme="dark"]) .bg-white\/88          { background-color: rgb(var(--app-surface) / 0.90) !important; }
+  html:not([data-theme="dark"]) .bg-white\/90          { background-color: rgb(var(--app-surface) / 0.92) !important; }
+  html:not([data-theme="dark"]) .bg-slate-50           { background-color: rgb(var(--app-surface-muted)) !important; }
+  html:not([data-theme="dark"]) .bg-slate-100          { background-color: rgb(var(--app-surface-soft)) !important; }
+  html:not([data-theme="dark"]) .bg-slate-200          { background-color: rgb(var(--app-surface-strong)) !important; }
+  html:not([data-theme="dark"]) .bg-slate-200\/50      { background-color: rgb(var(--app-surface-soft) / 0.5) !important; }
+  html:not([data-theme="dark"]) .bg-slate-300\/30      { background-color: rgb(var(--app-surface-strong) / 0.32) !important; }
   html:not([data-theme="dark"]) .border-white\/60,
-  html:not([data-theme="dark"]) .border-slate-200 {
-    border-color: rgb(var(--app-border)) !important;
-  }
+  html:not([data-theme="dark"]) .border-slate-200      { border-color: rgb(var(--app-border)) !important; }
+  html:not([data-theme="dark"]) .border-slate-200\/80  { border-color: rgb(var(--app-border) / 0.82) !important; }
+  html:not([data-theme="dark"]) .border-slate-300      { border-color: rgb(var(--app-border-strong) / 0.72) !important; }
+  html:not([data-theme="dark"]) .hover\:bg-slate-50:hover  { background-color: rgb(var(--app-surface-soft)) !important; }
+  html:not([data-theme="dark"]) .hover\:bg-slate-100:hover { background-color: rgb(var(--app-surface-strong)) !important; }
 
-  html:not([data-theme="dark"]) .border-slate-200\/80 {
-    border-color: rgb(var(--app-border) / 0.82) !important;
-  }
-
-  html:not([data-theme="dark"]) .border-slate-300 {
-    border-color: rgb(var(--app-border-strong) / 0.72) !important;
-  }
-
-  html:not([data-theme="dark"]) .hover\:bg-slate-50:hover {
-    background-color: rgb(var(--app-surface-soft)) !important;
-  }
-
-  html:not([data-theme="dark"]) .hover\:bg-slate-100:hover {
-    background-color: rgb(var(--app-surface-strong)) !important;
-  }
-
-  html[data-theme="dark"] .border {
-    border-color: rgb(var(--app-border)) !important;
-  }
-
-  html[data-theme="dark"] .bg-white {
-    background-color: rgb(var(--app-surface)) !important;
-  }
-
-  html[data-theme="dark"] .bg-white\/90 {
-    background-color: rgb(var(--app-surface) / 0.92) !important;
-  }
-
-  html[data-theme="dark"] .bg-slate-50 {
-    background-color: rgb(var(--app-surface-muted)) !important;
-  }
-
-  html[data-theme="dark"] .bg-slate-100 {
-    background-color: rgb(var(--app-surface-soft)) !important;
-  }
-
-  html[data-theme="dark"] .bg-slate-200 {
-    background-color: rgb(var(--app-surface-strong)) !important;
-  }
-
-  html[data-theme="dark"] .bg-slate-200\/50 {
-    background-color: rgb(var(--app-surface-soft) / 0.45) !important;
-  }
-
-  html[data-theme="dark"] .bg-slate-300\/30 {
-    background-color: rgb(var(--app-surface-strong) / 0.3) !important;
-  }
-
-  html[data-theme="dark"] .bg-slate-800 {
-    background-color: rgb(var(--app-surface-soft)) !important;
-  }
-
-  html[data-theme="dark"] .bg-slate-900 {
-    background-color: rgb(var(--app-surface-muted)) !important;
-  }
-
-  html[data-theme="dark"] .bg-amber-50 {
-    background-color: rgb(146 64 14 / 0.18) !important;
-  }
-
-  html[data-theme="dark"] .bg-amber-100 {
-    background-color: rgb(146 64 14 / 0.26) !important;
-  }
-
-  html[data-theme="dark"] .bg-amber-300 {
-    background-color: rgb(180 83 9 / 0.36) !important;
-  }
-
-  html[data-theme="dark"] .bg-blue-100 {
-    background-color: rgb(30 64 175 / 0.24) !important;
-  }
-
-  html[data-theme="dark"] .bg-blue-200 {
-    background-color: rgb(30 64 175 / 0.32) !important;
-  }
-
-  html[data-theme="dark"] .bg-emerald-50 {
-    background-color: rgb(6 95 70 / 0.16) !important;
-  }
-
-  html[data-theme="dark"] .bg-emerald-100 {
-    background-color: rgb(6 95 70 / 0.24) !important;
-  }
-
-  html[data-theme="dark"] .bg-emerald-200 {
-    background-color: rgb(6 95 70 / 0.32) !important;
-  }
-
-  html[data-theme="dark"] .bg-red-50 {
-    background-color: rgb(127 29 29 / 0.14) !important;
-  }
-
-  html[data-theme="dark"] .bg-red-100 {
-    background-color: rgb(127 29 29 / 0.22) !important;
-  }
-
-  html[data-theme="dark"] .bg-red-200 {
-    background-color: rgb(153 27 27 / 0.3) !important;
-  }
-
-  html[data-theme="dark"] .from-white {
-    --tw-gradient-from: rgb(var(--app-surface)) var(--tw-gradient-from-position) !important;
-    --tw-gradient-to: rgb(var(--app-surface) / 0) var(--tw-gradient-to-position) !important;
-  }
-
-  html[data-theme="dark"] .via-slate-50 {
-    --tw-gradient-stops: var(--tw-gradient-from),
-      rgb(var(--app-surface-muted)) var(--tw-gradient-via-position),
-      var(--tw-gradient-to) !important;
-  }
-
-  html[data-theme="dark"] .to-slate-100 {
-    --tw-gradient-to: rgb(var(--app-surface-soft)) var(--tw-gradient-to-position) !important;
-  }
-
-  html[data-theme="dark"] .border-white\/60 {
-    border-color: rgb(var(--app-border) / 0.72) !important;
-  }
-
-  html[data-theme="dark"] .border-slate-200 {
-    border-color: rgb(var(--app-border)) !important;
-  }
-
-  html[data-theme="dark"] .border-slate-200\/80 {
-    border-color: rgb(var(--app-border) / 0.8) !important;
-  }
-
-  html[data-theme="dark"] .border-slate-300 {
-    border-color: rgb(var(--app-border-strong)) !important;
-  }
-
+  html[data-theme="dark"] .border               { border-color: rgb(var(--app-border)) !important; }
+  html[data-theme="dark"] .bg-white             { background-color: rgb(var(--app-surface)) !important; }
+  html[data-theme="dark"] .bg-white\/90         { background-color: rgb(var(--app-surface) / 0.92) !important; }
+  html[data-theme="dark"] .bg-slate-50          { background-color: rgb(var(--app-surface-muted)) !important; }
+  html[data-theme="dark"] .bg-slate-100         { background-color: rgb(var(--app-surface-soft)) !important; }
+  html[data-theme="dark"] .bg-slate-200         { background-color: rgb(var(--app-surface-strong)) !important; }
+  html[data-theme="dark"] .bg-slate-200\/50     { background-color: rgb(var(--app-surface-soft) / 0.45) !important; }
+  html[data-theme="dark"] .bg-slate-300\/30     { background-color: rgb(var(--app-surface-strong) / 0.30) !important; }
+  html[data-theme="dark"] .bg-slate-800         { background-color: rgb(var(--app-surface-soft)) !important; }
+  html[data-theme="dark"] .bg-slate-900         { background-color: rgb(var(--app-surface-muted)) !important; }
+  html[data-theme="dark"] .bg-amber-50          { background-color: rgb(120 60 10 / 0.20) !important; }
+  html[data-theme="dark"] .bg-amber-100         { background-color: rgb(150 80 15 / 0.28) !important; }
+  html[data-theme="dark"] .bg-amber-300         { background-color: rgb(180 100 20 / 0.38) !important; }
+  html[data-theme="dark"] .bg-blue-100          { background-color: rgb(30 64 175 / 0.24) !important; }
+  html[data-theme="dark"] .bg-blue-200          { background-color: rgb(30 64 175 / 0.32) !important; }
+  html[data-theme="dark"] .bg-emerald-50        { background-color: rgb(6 95 70 / 0.16) !important; }
+  html[data-theme="dark"] .bg-emerald-100       { background-color: rgb(6 95 70 / 0.24) !important; }
+  html[data-theme="dark"] .bg-emerald-200       { background-color: rgb(6 95 70 / 0.32) !important; }
+  html[data-theme="dark"] .bg-red-50            { background-color: rgb(127 29 29 / 0.14) !important; }
+  html[data-theme="dark"] .bg-red-100           { background-color: rgb(127 29 29 / 0.22) !important; }
+  html[data-theme="dark"] .bg-red-200           { background-color: rgb(153 27 27 / 0.30) !important; }
+  html[data-theme="dark"] .border-white\/60     { border-color: rgb(var(--app-border) / 0.72) !important; }
+  html[data-theme="dark"] .border-slate-200     { border-color: rgb(var(--app-border)) !important; }
+  html[data-theme="dark"] .border-slate-200\/80 { border-color: rgb(var(--app-border) / 0.80) !important; }
+  html[data-theme="dark"] .border-slate-300     { border-color: rgb(var(--app-border-strong)) !important; }
   html[data-theme="dark"] .border-slate-400,
   html[data-theme="dark"] .border-slate-500,
-  html[data-theme="dark"] .border-slate-900 {
-    border-color: rgb(148 163 184) !important;
-  }
-
+  html[data-theme="dark"] .border-slate-900     { border-color: rgb(110 84 52) !important; }
   html[data-theme="dark"] .border-amber-200,
   html[data-theme="dark"] .border-amber-300,
   html[data-theme="dark"] .ring-amber-400 {
-    border-color: rgb(251 191 36 / 0.45) !important;
-    --tw-ring-color: rgb(251 191 36 / 0.45) !important;
+    border-color: rgb(220 160 50 / 0.45) !important;
+    --tw-ring-color: rgb(220 160 50 / 0.45) !important;
   }
-
   html[data-theme="dark"] .border-blue-200,
   html[data-theme="dark"] .ring-blue-400 {
     border-color: rgb(96 165 250 / 0.45) !important;
     --tw-ring-color: rgb(96 165 250 / 0.45) !important;
   }
-
   html[data-theme="dark"] .border-emerald-200,
   html[data-theme="dark"] .border-emerald-300,
   html[data-theme="dark"] .ring-emerald-400 {
-    border-color: rgb(52 211 153 / 0.4) !important;
-    --tw-ring-color: rgb(52 211 153 / 0.4) !important;
+    border-color: rgb(52 211 153 / 0.40) !important;
+    --tw-ring-color: rgb(52 211 153 / 0.40) !important;
   }
-
   html[data-theme="dark"] .border-red-200,
   html[data-theme="dark"] .border-red-300,
   html[data-theme="dark"] .ring-red-400 {
     border-color: rgb(248 113 113 / 0.45) !important;
     --tw-ring-color: rgb(248 113 113 / 0.45) !important;
   }
-
-  html[data-theme="dark"] .ring-slate-200 {
-    --tw-ring-color: rgb(var(--app-border)) !important;
-  }
-
-  html[data-theme="dark"] .ring-slate-300 {
-    --tw-ring-color: rgb(var(--app-border-strong)) !important;
-  }
-
-  html[data-theme="dark"] .text-slate-900 {
-    color: rgb(var(--app-text-strong)) !important;
-  }
-
+  html[data-theme="dark"] .ring-slate-200 { --tw-ring-color: rgb(var(--app-border)) !important; }
+  html[data-theme="dark"] .ring-slate-300 { --tw-ring-color: rgb(var(--app-border-strong)) !important; }
+  html[data-theme="dark"] .text-slate-900 { color: rgb(var(--app-text-strong)) !important; }
   html[data-theme="dark"] .text-slate-800,
-  html[data-theme="dark"] .text-slate-700 {
-    color: rgb(var(--app-text)) !important;
-  }
-
-  html[data-theme="dark"] .text-slate-600 {
-    color: rgb(var(--app-text-muted)) !important;
-  }
-
+  html[data-theme="dark"] .text-slate-700 { color: rgb(var(--app-text)) !important; }
+  html[data-theme="dark"] .text-slate-600 { color: rgb(var(--app-text-muted)) !important; }
   html[data-theme="dark"] .text-slate-500,
-  html[data-theme="dark"] .text-slate-400 {
-    color: rgb(var(--app-text-soft)) !important;
-  }
-
+  html[data-theme="dark"] .text-slate-400 { color: rgb(var(--app-text-soft)) !important; }
   html[data-theme="dark"] .text-amber-950,
   html[data-theme="dark"] .text-amber-900,
-  html[data-theme="dark"] .text-amber-800 {
-    color: rgb(254 215 170) !important;
-  }
-
+  html[data-theme="dark"] .text-amber-800 { color: rgb(252 220 160) !important; }
   html[data-theme="dark"] .text-blue-950,
   html[data-theme="dark"] .text-blue-900,
-  html[data-theme="dark"] .text-blue-800 {
-    color: rgb(191 219 254) !important;
-  }
-
+  html[data-theme="dark"] .text-blue-800  { color: rgb(191 219 254) !important; }
   html[data-theme="dark"] .text-emerald-950,
   html[data-theme="dark"] .text-emerald-900,
   html[data-theme="dark"] .text-emerald-800,
-  html[data-theme="dark"] .text-emerald-700 {
-    color: rgb(209 250 229) !important;
-  }
-
+  html[data-theme="dark"] .text-emerald-700 { color: rgb(209 250 229) !important; }
   html[data-theme="dark"] .text-red-950,
   html[data-theme="dark"] .text-red-900,
   html[data-theme="dark"] .text-red-800,
   html[data-theme="dark"] .text-red-700,
-  html[data-theme="dark"] .text-red-600 {
-    color: rgb(254 202 202) !important;
-  }
-
-  html[data-theme="dark"] .placeholder\:text-slate-400::placeholder {
-    color: rgb(var(--app-text-soft)) !important;
-  }
-
-  html[data-theme="dark"] .hover\:bg-slate-50:hover {
-    background-color: rgb(var(--app-surface-soft)) !important;
-  }
-
+  html[data-theme="dark"] .text-red-600 { color: rgb(254 202 202) !important; }
+  html[data-theme="dark"] .placeholder\:text-slate-400::placeholder { color: rgb(var(--app-text-soft)) !important; }
+  html[data-theme="dark"] .hover\:bg-slate-50:hover   { background-color: rgb(var(--app-surface-soft)) !important; }
   html[data-theme="dark"] .hover\:bg-slate-100:hover,
   html[data-theme="dark"] .hover\:bg-slate-800:hover,
-  html[data-theme="dark"] .hover\:bg-slate-900:hover {
-    background-color: rgb(var(--app-surface-strong)) !important;
-  }
-
-  html[data-theme="dark"] .hover\:bg-emerald-100:hover {
-    background-color: rgb(6 95 70 / 0.32) !important;
-  }
-
-  html[data-theme="dark"] .hover\:bg-emerald-200:hover {
-    background-color: rgb(6 95 70 / 0.4) !important;
-  }
-
-  html[data-theme="dark"] .hover\:bg-red-100:hover {
-    background-color: rgb(153 27 27 / 0.3) !important;
-  }
-
-  html[data-theme="dark"] .hover\:bg-red-200:hover {
-    background-color: rgb(185 28 28 / 0.38) !important;
-  }
-
-  html[data-theme="dark"] .hover\:text-slate-900:hover {
-    color: rgb(var(--app-text-strong)) !important;
-  }
+  html[data-theme="dark"] .hover\:bg-slate-900:hover  { background-color: rgb(var(--app-surface-strong)) !important; }
+  html[data-theme="dark"] .hover\:bg-emerald-100:hover { background-color: rgb(6 95 70 / 0.32) !important; }
+  html[data-theme="dark"] .hover\:bg-emerald-200:hover { background-color: rgb(6 95 70 / 0.40) !important; }
+  html[data-theme="dark"] .hover\:bg-red-100:hover     { background-color: rgb(153 27 27 / 0.30) !important; }
+  html[data-theme="dark"] .hover\:bg-red-200:hover     { background-color: rgb(185 28 28 / 0.38) !important; }
+  html[data-theme="dark"] .hover\:text-slate-900:hover { color: rgb(var(--app-text-strong)) !important; }
 }
